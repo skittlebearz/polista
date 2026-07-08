@@ -1,0 +1,5 @@
+.venv/
+.codex-logs/
+data/*.json
+__pycache__/
+*.pyc

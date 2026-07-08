@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart      # HTML form posts
+itsdangerous          # required by Starlette SessionMiddleware
+argon2-cffi           # password hashing
+# --- real backend only (Checkpoint 5+; not needed with TOFINO_BACKEND=fake) ---
+# grpcio
+# protobuf
+# p4runtime
+# grpcio-tools        # BUILD-ONLY: regenerate stubs from .proto if needed
