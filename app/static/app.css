@@ -73,6 +73,10 @@ button:hover {
   border-color: var(--accent);
 }
 
+#panel {
+  position: relative;
+}
+
 #ports {
   position: relative;
   display: grid;

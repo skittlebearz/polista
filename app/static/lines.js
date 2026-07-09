@@ -18,7 +18,7 @@
     svg.setAttribute("viewBox", "0 0 " + svgRect.width + " " + svgRect.height);
     svg.replaceChildren();
     qsa("[data-side][data-port]").forEach(function (el) {
-      el.classList.remove("connected", "selected", "connected-to-selected");
+      el.classList.remove("connected", "selected", "connected-to-selected", "conflict-pending");
     });
     qsa('[data-side="ingress"][data-mapped-egress]').forEach(function (ingress) {
       var egressPort = ingress.dataset.mappedEgress;
@@ -35,7 +35,7 @@
       line.setAttribute("x2", end[0]);
       line.setAttribute("y2", end[1]);
       line.classList.add("connection");
-      if (selected === ingress.dataset.port) line.classList.add("highlight");
+      if (selected === ingress.dataset.port) line.classList.add("connected-to-selected");
       svg.appendChild(line);
     });
     var ingress = selected && qs(portSelector("ingress", selected));
@@ -45,7 +45,16 @@
       var egress = mapped && qs(portSelector("egress", mapped));
       if (egress) egress.classList.add("connected-to-selected");
     }
+    var confirm = qs("#dialog .conflict-confirm");
+    if (confirm) {
+      ["ingress", "egress"].forEach(function (side) {
+        var input = confirm.querySelector('input[name="' + side + '"]');
+        var el = input && qs(portSelector(side, input.value));
+        if (el) el.classList.add("conflict-pending");
+      });
+    }
   }
+  window.portofinoRedraw = redraw;
   document.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : event.target.parentElement;
     if (!target || target.closest("input, button, form")) return;
