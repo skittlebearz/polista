@@ -1,0 +1,24 @@
+<div id="ports">
+  <div class="ports-column ingress-column">
+    {% for p in range(1, port_count + 1) %}
+      {% set mapping = mappings.get(p) %}
+      {% set mapped = mapping is not none %}
+      {% set label = labels.get(p, "") %}
+      <div class="port ingress{% if mapped %} connected{% endif %}" data-side="ingress" data-port="{{ p }}" data-mapped-egress="{{ mapping or '' }}">
+        <span class="port-number">{{ p }}</span>
+        <input name="label" value="{{ label }}" hx-put="/ui/labels/{{ p }}" hx-trigger="change" hx-target="#ports" hx-swap="outerHTML">
+      </div>
+    {% endfor %}
+  </div>
+  <div class="ports-column egress-column">
+    {% for p in range(1, port_count + 1) %}
+      {% set connected = p in mappings.values() %}
+      {% set label = labels.get(p, "") %}
+      <div class="port egress{% if connected %} connected{% endif %}" data-side="egress" data-port="{{ p }}">
+        <span class="port-number">{{ p }}</span>
+        <input name="label" value="{{ label }}" hx-put="/ui/labels/{{ p }}" hx-trigger="change" hx-target="#ports" hx-swap="outerHTML">
+      </div>
+    {% endfor %}
+  </div>
+</div>
+<div id="dialog" hx-swap-oob="true"></div>

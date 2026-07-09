@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Portofino</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/lines.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Portofino</h1>
+      <div class="status" aria-live="polite">{{ health }} / {{ sync }}</div>
+      <button type="button" hx-post="/ui/refresh" hx-target="#panel" hx-swap="outerHTML">Refresh</button>
+      <form method="post" action="/ui/logout">
+        <button type="submit">Logout</button>
+      </form>
+    </header>
+    <main>
+      {% include "panel.html" %}
+    </main>
+  </body>
+</html>

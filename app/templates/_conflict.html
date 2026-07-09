@@ -1,0 +1,15 @@
+<div class="conflict-confirm">
+  <p>Replacing {{ ingress }} -> {{ egress }} will remove:</p>
+  <ul>
+    {% for r in would_remove %}
+      <li>{{ r.ingress }} -> {{ r.egress }}</li>
+    {% endfor %}
+  </ul>
+  <form hx-post="/ui/mappings" hx-target="#ports" hx-swap="outerHTML">
+    <input type="hidden" name="ingress" value="{{ ingress }}">
+    <input type="hidden" name="egress" value="{{ egress }}">
+    <input type="hidden" name="force" value="true">
+    <button type="submit">Replace</button>
+    <button type="button" onclick="document.getElementById('dialog').innerHTML=''">Cancel</button>
+  </form>
+</div>
