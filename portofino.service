@@ -1,0 +1,26 @@
+# Expected install layout:
+#   /opt/portofino/              app source tree
+#   /opt/portofino/.venv/        Python virtualenv with runtime wheels installed
+#   /etc/portofino/portofino.env Section 15 app environment variables
+#
+# Example portofino.env should define PORT_COUNT, MAPPINGS_FILE, PORT_MAP_FILE,
+# AUTH_FILE, SESSION_SECRET, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD,
+# TOFINO_BACKEND, TOFINO_GRPC_TARGET, TOFINO_DEVICE_ID, and TOFINO_PROGRAM_NAME.
+# It may also override UVICORN_HOST and UVICORN_PORT below.
+
+[Unit]
+Description=Portofino Tofino Port Cross-Connect Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/portofino
+Environment=UVICORN_HOST=127.0.0.1
+Environment=UVICORN_PORT=8000
+EnvironmentFile=/etc/portofino/portofino.env
+ExecStart=/opt/portofino/.venv/bin/uvicorn app.main:app --host ${UVICORN_HOST} --port ${UVICORN_PORT}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

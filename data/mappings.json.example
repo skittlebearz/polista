@@ -1,0 +1,19 @@
+{
+  "mappings": [
+    {
+      "ingress": 1,
+      "egress": 2
+    },
+    {
+      "ingress": 3,
+      "egress": 4
+    }
+  ],
+  "labels": {
+    "1": "Camera A",
+    "2": "Recorder A",
+    "3": "Feed B",
+    "4": "Monitor B"
+  },
+  "last_sync_status": "ok"
+}
