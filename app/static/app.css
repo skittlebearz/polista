@@ -1,0 +1,212 @@
+:root {
+  color-scheme: light dark;
+  --bg: #101419;
+  --panel: #171d24;
+  --port: #202833;
+  --text: #e7edf3;
+  --muted: #9ba8b6;
+  --line: #7f8ea3;
+  --border: #344253;
+  --accent: #57b6ff;
+  --ok: #4fce88;
+  --warn: #f0bf4f;
+  --danger: #f07070;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+header,
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: #141a21;
+}
+
+.health,
+[data-health],
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+
+.health::before,
+[data-health]::before,
+.sync-indicator::before {
+  content: "";
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0.7rem color-mix(in srgb, var(--ok), transparent 55%);
+}
+
+button,
+input {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0f141a;
+  color: var(--text);
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  padding: 0.45rem 0.7rem;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+#ports {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr);
+  column-gap: clamp(5rem, 16vw, 16rem);
+  row-gap: 0.65rem;
+  padding: 1.25rem;
+  isolation: isolate;
+}
+
+#lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-side="ingress"] {
+  grid-column: 1;
+}
+
+[data-side="egress"] {
+  grid-column: 2;
+}
+
+.port,
+[data-side][data-port] {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--port);
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.port:hover,
+[data-side][data-port]:hover {
+  border-color: #506174;
+}
+
+.port.connected,
+[data-side][data-port].connected {
+  border-color: color-mix(in srgb, var(--ok), var(--border) 35%);
+  background: #1d3028;
+}
+
+.port.selected,
+[data-side][data-port].selected {
+  border-color: var(--accent);
+  background: #173047;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent), transparent 70%);
+}
+
+.port.connected-to-selected,
+[data-side][data-port].connected-to-selected {
+  border-color: var(--warn);
+  background: #332b18;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn), transparent 72%);
+}
+
+.port.conflict-pending,
+[data-side][data-port].conflict-pending {
+  border-color: var(--danger);
+  background: #3a2023;
+}
+
+.port input,
+[data-side][data-port] input {
+  min-width: 0;
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+}
+
+.connection {
+  stroke: var(--line);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+.connection.highlight,
+.connection.connected-to-selected {
+  stroke: var(--warn);
+  stroke-width: 4;
+  opacity: 1;
+}
+
+#dialog {
+  margin: 1rem auto;
+  max-width: 36rem;
+}
+
+#dialog:empty {
+  display: none;
+}
+
+#dialog > * {
+  padding: 1rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: #251a1d;
+}
+
+form.login,
+.login form,
+main > form {
+  display: grid;
+  gap: 0.8rem;
+  width: min(24rem, calc(100vw - 2rem));
+  margin: 12vh auto;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+form.login input,
+.login form input,
+main > form input {
+  padding: 0.55rem 0.65rem;
+}
+
+@media (max-width: 720px) {
+  #ports {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 3rem;
+    padding: 0.75rem;
+  }
+}

@@ -13,6 +13,7 @@ from app.controller import Controller
 from app.port_map import PortMap, PortMapError, load_port_map
 from app.routes import api as api_routes
 from app.routes import auth as auth_routes
+from app.routes import ui as ui_routes
 from app.store import Store
 from app.tofino.fake import FakeBackend
 
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(auth_routes.router)
     app.include_router(api_routes.router)
+    app.include_router(ui_routes.router)
     return app
 
 
