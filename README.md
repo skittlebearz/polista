@@ -20,10 +20,6 @@ ingress port can be cross-connected to exactly one egress port, and every packet
 arriving on a mapped port is forwarded to its counterpart — no L2/L3 lookups, no
 learning, no config files on the switch. Ports with no mapping drop everything.
 
-It was built for the "put this feed on that recorder" class of problem (studios,
-labs, test benches), where what you want is a physical-feeling patch bay with an
-audit trail, not a full switch OS.
-
 ## Highlights
 
 - **Strict 1:1 semantics.** One ingress maps to at most one egress and vice versa.
@@ -51,7 +47,7 @@ audit trail, not a full switch OS.
                    │  FastAPI (one uvicorn process)      │
   Python client ──►│  • server-rendered patch-panel UI   │        ┌─────────────┐
   (REST + Basic)   │  • JSON REST API (session/Basic)    │──gRPC──►  Tofino 1   │
-                   │  • Controller: asyncio.Lock, 1:1    │ (BFRT) │ cross-connect│
+                   │  • Controller: asyncio.Lock, 1:1    │ (BFRT) │cross-connect│
                    │    invariant, health/sync states    │        │  P4 table   │
                    │  • JSON persistence (atomic writes) │        └─────────────┘
                    └─────────────────────────────────────┘
@@ -207,8 +203,3 @@ tests/          acceptance tests (pytest)
 data/           example port map / mappings files
 ```
 
-## Status & scope
-
-Portofino manages exactly one thing: the cross-connect table of one device, for
-one admin user. No VLANs, no multicast fan-out, no port speed management, no
-multi-user RBAC. Those are features Portofino is happy not to have.
