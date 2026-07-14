@@ -89,6 +89,12 @@ def test_ui_requires_session_redirects_to_login(client):
     assert "/ui/login" in r.headers["location"]
 
 
+def test_root_redirects_to_ui(client):
+    r = client.get("/")
+    assert r.status_code in (302, 303, 307)
+    assert r.headers["location"].rstrip("/").endswith("/ui")
+
+
 def test_login_page_renders(client):
     r = client.get("/ui/login")
     assert r.status_code == 200

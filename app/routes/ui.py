@@ -59,6 +59,11 @@ def _panel_context(request: Request, *, oob: bool = False) -> dict:
     }
 
 
+@router.get("/")
+async def root():
+    return RedirectResponse("/ui", status_code=303)
+
+
 @router.get("/ui")
 async def index(request: Request):
     if _session_user(request) is None:
