@@ -137,6 +137,18 @@ def main():
             page.wait_for_timeout(300)
             check("line survives resize", lines() == 1)
 
+            # bidirectional: egress-first (right side, then left side)
+            egr(2).locator(".port-number").click()
+            check("egress click selects (client-side)", "selected" in (egr(2).get_attribute("class") or ""))
+            ing(3).locator(".port-number").click()
+            page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="3"]\').dataset.mappedEgress === "2"')
+            check("egress-first connect 3->2", lines() == 2)
+
+            egr(2).locator(".port-number").click()
+            ing(3).locator(".port-number").click()
+            page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="3"]\').dataset.mappedEgress === ""')
+            check("egress-first paired click disconnects", lines() == 1)
+
             check("no JS errors on page", not js_errors)
             if js_errors:
                 print("JS errors:", js_errors)

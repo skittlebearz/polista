@@ -33,8 +33,8 @@ header {
 }
 
 .brand { display: flex; align-items: center; gap: .6rem; color: var(--text); text-decoration: none; }
-.header-logo { width: 2.1rem; height: 2.1rem; display: block; }
-.brand-name { font-size: 1.25rem; font-weight: 700; letter-spacing: .01em; line-height: 1; }
+.header-logo { width: 3rem; height: 3rem; display: block; }
+.brand-name { font-size: 1.45rem; font-weight: 700; letter-spacing: .01em; line-height: 1; }
 .header-actions { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
 .status { display: flex; align-items: center; }
 .status-dot { position: relative; width: .85rem; height: .85rem; border-radius: 50%; cursor: default; }
@@ -64,19 +64,19 @@ input { padding: .35rem .45rem; }
 input:focus, button:focus-visible { outline: 2px solid #ff9b45; outline-offset: 2px; }
 
 #panel { position: relative; }
-#ports { position: relative; display: grid; grid-template-columns: minmax(0, 15rem) minmax(12rem, 1fr) minmax(0, 15rem); column-gap: clamp(4rem, 12vw, 14rem); padding: 1.25rem; isolation: isolate; }
+#ports { position: relative; display: grid; grid-template-columns: minmax(0, 15rem) minmax(12rem, 1fr) minmax(0, 15rem); column-gap: clamp(4rem, 12vw, 14rem); padding: 1.5rem clamp(1.75rem, 4vw, 4.5rem); isolation: isolate; }
 .ports-column { display: flex; flex-direction: column; gap: .625rem; }
 .ingress-column { grid-column: 1; align-items: flex-start; }
 .egress-column { grid-column: 3; align-items: flex-end; }
 #lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; filter: drop-shadow(0 0 3px rgb(255 125 30 / 60%)); }
 
-.port, [data-side][data-port] { position: relative; z-index: 1; display: flex; align-items: center; gap: .55rem; width: 100%; max-width: 15rem; min-height: 2.75rem; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--port); transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease; }
+.port, [data-side][data-port] { position: relative; z-index: 1; display: flex; align-items: center; gap: .55rem; width: 100%; max-width: 15rem; min-height: 2.75rem; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--port); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease; }
 .port:hover, [data-side][data-port]:hover { border-color: #5d8294; }
 .port-number { flex: 0 0 auto; min-width: 1.45rem; padding: .1rem .35rem; border-radius: 999px; background: #08243a; color: #ffd7b2; text-align: center; font-variant-numeric: tabular-nums; }
-.label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; user-select: none; }
 .label-text.unlabeled { color: var(--muted); font-style: italic; }
 .label-edit { margin-left: auto; padding: .12rem .35rem; border-color: transparent; color: #ffc277; line-height: 1.2; }
-.port input, [data-side][data-port] input { display: none; min-width: 0; width: 100%; }
+.port input, [data-side][data-port] input { display: none; min-width: 0; width: 100%; cursor: text; }
 .port.editing .label-text, .port.editing .label-edit { display: none; }
 .port.editing input { display: block; }
 .port.connected, [data-side][data-port].connected { border-color: #4b9277; background: #123e43; }

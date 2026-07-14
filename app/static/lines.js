@@ -1,5 +1,5 @@
 (function () {
-  var selected = null;
+  var selected = null; // {side: "ingress"|"egress", port: "<n>"} or null
   var svgNS = "http://www.w3.org/2000/svg";
   var qsa = function (selector) { return document.querySelectorAll(selector); };
   var qs = function (selector) { return document.querySelector(selector); };
@@ -10,6 +10,13 @@
   function point(el, svgRect, edge) {
     var rect = el.getBoundingClientRect();
     return [(edge === "right" ? rect.right : rect.left) - svgRect.left, rect.top + rect.height / 2 - svgRect.top];
+  }
+  function ingressMappedTo(egressPort) {
+    var found = null;
+    qsa('[data-side="ingress"][data-mapped-egress]').forEach(function (el) {
+      if (el.dataset.mappedEgress === egressPort) found = el;
+    });
+    return found;
   }
   function redraw() {
     var svg = document.getElementById("lines");
@@ -35,15 +42,22 @@
       line.setAttribute("x2", end[0]);
       line.setAttribute("y2", end[1]);
       line.classList.add("connection");
-      if (selected === ingress.dataset.port) line.classList.add("connected-to-selected");
+      if (selected && (selected.side === "ingress"
+            ? selected.port === ingress.dataset.port
+            : selected.port === egressPort)) {
+        line.classList.add("connected-to-selected");
+      }
       svg.appendChild(line);
     });
-    var ingress = selected && qs(portSelector("ingress", selected));
-    if (ingress) {
-      ingress.classList.add("selected");
-      var mapped = ingress.dataset.mappedEgress;
-      var egress = mapped && qs(portSelector("egress", mapped));
-      if (egress) egress.classList.add("connected-to-selected");
+    if (selected) {
+      var sel = qs(portSelector(selected.side, selected.port));
+      if (sel) {
+        sel.classList.add("selected");
+        var counterpart = selected.side === "ingress"
+          ? (sel.dataset.mappedEgress && qs(portSelector("egress", sel.dataset.mappedEgress)))
+          : ingressMappedTo(selected.port);
+        if (counterpart) counterpart.classList.add("connected-to-selected");
+      }
     }
     var confirm = qs("#dialog .conflict-confirm");
     if (confirm) {
@@ -71,28 +85,30 @@
     if (!target || target.closest("input, button, form")) return;
     var port = target.closest("[data-side][data-port]");
     if (!port) return;
-    if (port.dataset.side === "ingress") {
-      selected = selected === port.dataset.port ? null : port.dataset.port;
+    var side = port.dataset.side;
+    var num = port.dataset.port;
+    // First click (either column) selects; same-column click moves the selection.
+    if (!selected || selected.side === side) {
+      selected = (selected && selected.port === num) ? null : { side: side, port: num };
       redraw();
       return;
     }
-    if (port.dataset.side === "egress" && selected) {
-      var ingress = qs(portSelector("ingress", selected));
-      if (!ingress || !window.htmx) return;
-      var ingressPort = ingress.dataset.port;
-      var egressPort = port.dataset.port;
-      var samePair = ingress.dataset.mappedEgress === egressPort;
-      var path = samePair ? "/ui/mappings/delete" : "/ui/mappings";
-      var values = { ingress: ingressPort, egress: egressPort };
-      if (!samePair) values.force = "false";
-      window.htmx.ajax("POST", path, {
-        target: "#ports",
-        swap: "outerHTML",
-        values: values
-      });
-      selected = null;
-      redraw();
-    }
+    // Opposite column completes the gesture: connect, or disconnect the exact pair.
+    var ingressPort = side === "ingress" ? num : selected.port;
+    var egressPort = side === "egress" ? num : selected.port;
+    var ingress = qs(portSelector("ingress", ingressPort));
+    if (!ingress || !window.htmx) return;
+    var samePair = ingress.dataset.mappedEgress === egressPort;
+    var path = samePair ? "/ui/mappings/delete" : "/ui/mappings";
+    var values = { ingress: ingressPort, egress: egressPort };
+    if (!samePair) values.force = "false";
+    window.htmx.ajax("POST", path, {
+      target: "#ports",
+      swap: "outerHTML",
+      values: values
+    });
+    selected = null;
+    redraw();
   });
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape" || !event.target.matches('input[name="label"]')) return;
