@@ -113,12 +113,16 @@ def main():
             page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="1"]\').dataset.mappedEgress === ""')
             check("paired click disconnects", lines() == 0)
 
-            # label edit via change event
+            # label edit is a deliberate action: edit button reveals the input
+            check("label input hidden until edit clicked", not ing(3).locator("input").is_visible())
+            ing(3).locator(".label-edit").click()
+            check("edit button reveals input", ing(3).locator("input").is_visible())
             ing(3).locator("input").fill("Camera A")
             ing(3).locator("input").blur()
-            page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="3"] input\').value === "Camera A"')
+            page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="3"]\').textContent.includes("Camera A")')
             page.reload()
-            check("label persists across reload", ing(3).locator("input").input_value() == "Camera A")
+            check("label persists across reload", "Camera A" in (ing(3).text_content() or ""))
+            check("input hidden again after save", not ing(3).locator("input").is_visible())
 
             # refresh button re-renders panel
             ing(4).locator(".port-number").click(); egr(6).locator(".port-number").click()

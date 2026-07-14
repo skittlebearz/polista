@@ -57,6 +57,17 @@
   window.portofinoRedraw = redraw;
   document.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : event.target.parentElement;
+    var edit = target && target.closest(".label-edit");
+    if (edit) {
+      var editPort = edit.closest("[data-side][data-port]");
+      var input = editPort && editPort.querySelector('input[name="label"]');
+      if (editPort && input) {
+        editPort.classList.add("editing");
+        input.focus();
+        input.select();
+      }
+      return;
+    }
     if (!target || target.closest("input, button, form")) return;
     var port = target.closest("[data-side][data-port]");
     if (!port) return;
@@ -82,6 +93,16 @@
       selected = null;
       redraw();
     }
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !event.target.matches('input[name="label"]')) return;
+    var port = event.target.closest("[data-side][data-port]");
+    var label = port && port.querySelector(".label-text");
+    if (!port || !label) return;
+    event.preventDefault();
+    event.target.value = label.classList.contains("unlabeled") ? "" : label.textContent;
+    port.classList.remove("editing");
+    event.target.blur();
   });
   document.addEventListener("DOMContentLoaded", redraw);
   document.addEventListener("htmx:afterSwap", redraw);

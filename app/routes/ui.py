@@ -36,7 +36,7 @@ def _require_session(request: Request) -> str:
     return user
 
 
-def _panel_context(request: Request) -> dict:
+def _panel_context(request: Request, *, oob: bool = False) -> dict:
     controller = _controller(request)
     config = _config(request)
     return {
@@ -46,6 +46,7 @@ def _panel_context(request: Request) -> dict:
         "labels": controller.labels,
         "health": controller.health,
         "sync": controller.sync,
+        "oob": oob,
     }
 
 
@@ -116,7 +117,7 @@ async def create_mapping(
             headers={"HX-Retarget": "#dialog", "HX-Reswap": "innerHTML"},
         )
 
-    return templates.TemplateResponse(request, "_ports.html", _panel_context(request))
+    return templates.TemplateResponse(request, "_ports.html", _panel_context(request, oob=True))
 
 
 @router.post("/ui/mappings/delete")
@@ -134,7 +135,7 @@ async def delete_mapping(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return templates.TemplateResponse(request, "_ports.html", _panel_context(request))
+    return templates.TemplateResponse(request, "_ports.html", _panel_context(request, oob=True))
 
 
 @router.put("/ui/labels/{port}")
@@ -152,7 +153,7 @@ async def update_label(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return templates.TemplateResponse(request, "_ports.html", _panel_context(request))
+    return templates.TemplateResponse(request, "_ports.html", _panel_context(request, oob=True))
 
 
 @router.post("/ui/refresh")
@@ -165,4 +166,4 @@ async def refresh(request: Request):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return templates.TemplateResponse(request, "panel.html", _panel_context(request))
+    return templates.TemplateResponse(request, "panel.html", _panel_context(request, oob=True))

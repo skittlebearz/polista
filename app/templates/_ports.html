@@ -6,6 +6,8 @@
       {% set label = labels.get(p, "") %}
       <div class="port ingress{% if mapped %} connected{% endif %}" data-side="ingress" data-port="{{ p }}" data-mapped-egress="{{ mapping or '' }}">
         <span class="port-number">{{ p }}</span>
+        <span class="label-text{% if not label %} unlabeled{% endif %}">{{ label or "—" }}</span>
+        <button type="button" class="label-edit" title="Edit label" aria-label="Edit label">✎</button>
         <input name="label" value="{{ label }}" hx-put="/ui/labels/{{ p }}" hx-trigger="change" hx-target="#ports" hx-swap="outerHTML">
       </div>
     {% endfor %}
@@ -16,9 +18,12 @@
       {% set label = labels.get(p, "") %}
       <div class="port egress{% if connected %} connected{% endif %}" data-side="egress" data-port="{{ p }}">
         <span class="port-number">{{ p }}</span>
+        <span class="label-text{% if not label %} unlabeled{% endif %}">{{ label or "—" }}</span>
+        <button type="button" class="label-edit" title="Edit label" aria-label="Edit label">✎</button>
         <input name="label" value="{{ label }}" hx-put="/ui/labels/{{ p }}" hx-trigger="change" hx-target="#ports" hx-swap="outerHTML">
       </div>
     {% endfor %}
   </div>
 </div>
 <div id="dialog" hx-swap-oob="true"></div>
+{% if oob %}<div id="status" class="status" aria-live="polite" hx-swap-oob="true">{% include "_status.html" %}</div>{% endif %}
