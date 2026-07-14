@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Portofino Login</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png">
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v={{ static_v }}">
+    <link rel="stylesheet" href="/static/app.css?v={{ static_v }}">
   </head>
   <body>
     <main>
       <form class="login" method="post" action="/ui/login">
-        <img class="login-logo" src="/static/logo.png" alt="Portofino">
+        <img class="login-logo" src="/static/logo.png?v={{ static_v }}" alt="Portofino">
         {% if error %}
           <p class="error">{{ error }}</p>
         {% endif %}

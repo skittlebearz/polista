@@ -4,19 +4,24 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Portofino</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png">
-    <link rel="stylesheet" href="/static/app.css">
-    <script src="/static/htmx.min.js"></script>
-    <script src="/static/lines.js"></script>
+    <link rel="icon" type="image/png" href="/static/favicon.png?v={{ static_v }}">
+    <link rel="stylesheet" href="/static/app.css?v={{ static_v }}">
+    <script src="/static/htmx.min.js?v={{ static_v }}"></script>
+    <script src="/static/lines.js?v={{ static_v }}"></script>
   </head>
   <body>
     <header>
-      <h1><img class="header-logo" src="/static/logo.png" alt="">Portofino</h1>
-      <div id="status" class="status" aria-live="polite">{% include "_status.html" %}</div>
-      <button type="button" hx-post="/ui/refresh" hx-target="#panel" hx-swap="outerHTML">Refresh</button>
-      <form method="post" action="/ui/logout">
-        <button type="submit">Logout</button>
-      </form>
+      <a class="brand" href="/ui">
+        <img class="header-logo" src="/static/logo.png?v={{ static_v }}" alt="">
+        <span class="brand-name">Portofino</span>
+      </a>
+      <div class="header-actions">
+        <div id="status" class="status" aria-live="polite">{% include "_status.html" %}</div>
+        <button type="button" hx-post="/ui/refresh" hx-target="#panel" hx-swap="outerHTML">Refresh</button>
+        <form method="post" action="/ui/logout">
+          <button type="submit">Logout</button>
+        </form>
+      </div>
     </header>
     <main>
       {% include "panel.html" %}

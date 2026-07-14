@@ -14,6 +14,15 @@ router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
+def _static_version() -> str:
+    static_dir = Path(__file__).parent.parent / "static"
+    return str(int(max(f.stat().st_mtime for f in static_dir.iterdir() if f.is_file())))
+
+
+STATIC_V = _static_version()
+templates.env.globals["static_v"] = STATIC_V
+
+
 def _controller(request: Request):
     return request.app.state.controller
 

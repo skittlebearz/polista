@@ -1,2 +1,3 @@
-<span class="status-chip health-chip health-{{ health }}">{{ health }}</span>
-<span class="status-chip sync-chip sync-{{ sync }}">{{ sync }}</span>
+{% set overall = "unhealthy" if health == "unhealthy" else ("degraded" if sync != "in_sync" else "ok") %}
+<span class="status-dot status-{{ overall }}" role="status" tabindex="0"
+      data-tip="{{ health }} · {{ sync }}" aria-label="{{ health }} · {{ sync }}"></span>
