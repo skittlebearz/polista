@@ -30,8 +30,8 @@ def load_config() -> Config:
         raise ValueError("PORT_COUNT must be a positive integer")
 
     tofino_backend = os.environ.get("TOFINO_BACKEND", "fake")
-    if tofino_backend not in {"fake", "p4runtime"}:
-        raise ValueError('TOFINO_BACKEND must be "fake" or "p4runtime"')
+    if tofino_backend not in {"fake", "p4runtime", "bfrt"}:
+        raise ValueError('TOFINO_BACKEND must be "fake", "p4runtime", or "bfrt"')
 
     return Config(
         port_count=port_count,
@@ -47,4 +47,3 @@ def load_config() -> Config:
         tofino_device_id=os.environ.get("TOFINO_DEVICE_ID", "0"),
         tofino_program_name=os.environ.get("TOFINO_PROGRAM_NAME", "portofino"),
     )
-

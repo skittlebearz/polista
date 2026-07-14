@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,14 +17,21 @@ from app.routes import auth as auth_routes
 from app.routes import ui as ui_routes
 from app.store import Store
 from app.tofino.fake import FakeBackend
+from app.tofino.bfrt import BFRTBackend
 
 
-def _build_backend(name: str):
-    if name == "fake":
+def _build_backend(cfg):
+    if cfg.tofino_backend == "fake":
         return FakeBackend()
-    if name == "p4runtime":
+    if cfg.tofino_backend == "p4runtime":
         raise NotImplementedError("TOFINO_BACKEND=p4runtime is not implemented until Checkpoint 5")
-    raise ValueError(f"unsupported TOFINO_BACKEND: {name}")
+    if cfg.tofino_backend == "bfrt":
+        return BFRTBackend(
+            cfg.tofino_grpc_target,
+            int(cfg.tofino_device_id),
+            cfg.tofino_program_name,
+        )
+    raise ValueError(f"unsupported TOFINO_BACKEND: {cfg.tofino_backend}")
 
 
 def _identity_port_map(port_count: int) -> PortMap:
@@ -32,7 +40,7 @@ def _identity_port_map(port_count: int) -> PortMap:
 
 def create_app() -> FastAPI:
     cfg = load_config()
-    backend = _build_backend(cfg.tofino_backend)
+    backend = _build_backend(cfg)
     store = Store(cfg.mappings_file)
 
     @asynccontextmanager
@@ -50,7 +58,10 @@ def create_app() -> FastAPI:
             app.state.controller = controller
             await controller.reconcile()
 
-        yield
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(backend.close)
 
     app = FastAPI(lifespan=lifespan)
     app.state.config = cfg

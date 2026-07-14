@@ -19,3 +19,6 @@ class FakeBackend(TofinoBackend):
 
     def clear_all(self) -> None:
         self._entries.clear()
+
+    def close(self) -> None:
+        pass
