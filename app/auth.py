@@ -11,6 +11,8 @@ from app.store import load_auth
 
 
 _basic = HTTPBasic(auto_error=False)
+_password_hasher = PasswordHasher()
+_dummy_password_hash = _password_hasher.hash("portofino-dummy-password")
 
 
 def ensure_auth_file(config) -> None:
@@ -19,7 +21,7 @@ def ensure_auth_file(config) -> None:
         return
 
     auth_path.parent.mkdir(parents=True, exist_ok=True)
-    password_hash = PasswordHasher().hash(config.bootstrap_password)
+    password_hash = _password_hasher.hash(config.bootstrap_password)
     data = {
         "username": config.bootstrap_username,
         "password_hash": password_hash,
@@ -30,17 +32,15 @@ def ensure_auth_file(config) -> None:
 
 def verify_credentials(username, password, auth_path) -> bool:
     data = load_auth(auth_path)
-    if not data or data.get("username") != username:
-        return False
-
-    password_hash = data.get("password_hash")
-    if not password_hash:
-        return False
+    matching_user = bool(data) and data.get("username") == username
+    password_hash = data.get("password_hash") if matching_user else None
+    password_hash = password_hash or _dummy_password_hash
 
     try:
-        return PasswordHasher().verify(password_hash, password)
+        verified = _password_hasher.verify(password_hash, password)
     except Exception:
         return False
+    return bool(matching_user and verified)
 
 
 async def require_user(

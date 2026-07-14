@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.auth import require_user
+from app.controller import BackendError
 
 
 router = APIRouter(dependencies=[Depends(require_user)])
@@ -73,6 +74,8 @@ async def create_mapping(request: Request, body: MappingCreate):
     controller = _controller(request)
     try:
         result = await controller.connect(body.ingress, body.egress, force=body.force)
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -90,6 +93,8 @@ async def delete_mapping(request: Request, body: MappingDelete):
     controller = _controller(request)
     try:
         return await controller.disconnect(body.ingress, body.egress)
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -97,7 +102,12 @@ async def delete_mapping(request: Request, body: MappingDelete):
 @router.post("/refresh")
 async def refresh(request: Request):
     controller = _controller(request)
-    return await controller.refresh()
+    try:
+        return await controller.refresh()
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/labels")
@@ -111,5 +121,7 @@ async def update_label(request: Request, port: int, body: LabelUpdate):
     controller = _controller(request)
     try:
         return await controller.set_label(port, body.label)
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -24,6 +24,10 @@ class Store:
 
     def save_state(self, mappings, labels):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        temp_pattern = f".{self.path.name}.*.tmp"
+        for stale_temp in self.path.parent.glob(temp_pattern):
+            if stale_temp.is_file():
+                stale_temp.unlink()
 
         data = {
             "mappings": [
@@ -48,6 +52,11 @@ class Store:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(temp_name, self.path)
+            directory_fd = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         finally:
             if temp_name is not None and os.path.exists(temp_name):
                 os.unlink(temp_name)

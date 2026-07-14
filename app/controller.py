@@ -3,6 +3,10 @@ from __future__ import annotations
 import asyncio
 
 
+class BackendError(Exception):
+    """A device/backend operation failed after controller validation."""
+
+
 class Controller:
     def __init__(self, backend, port_map, store, port_count: int):
         self._lock = asyncio.Lock()
@@ -17,6 +21,7 @@ class Controller:
 
     async def connect(self, ingress, egress, force=False) -> dict:
         async with self._lock:
+            self._require_healthy()
             ingress = self._validate_port(ingress)
             egress = self._validate_port(egress)
             ingress_dev = self._to_dev(ingress)
@@ -38,8 +43,20 @@ class Controller:
                 return {"status": "conflict", "would_remove": removed}
 
             if other is not None:
-                await self._call(self.backend.delete_entry, self._to_dev(other))
-            await self._call(self.backend.write_entry, ingress_dev, egress_dev)
+                try:
+                    await self._call(self.backend.delete_entry, self._to_dev(other))
+                except Exception as exc:
+                    raise BackendError(str(exc)) from exc
+            try:
+                await self._call(self.backend.write_entry, ingress_dev, egress_dev)
+            except Exception as exc:
+                # The conflicting device entry is already gone.  Make the
+                # desired-state file reflect that live truth before reporting
+                # the failed replacement.
+                if other is not None:
+                    self.mappings.pop(other, None)
+                    await self._persist()
+                raise BackendError(str(exc)) from exc
 
             if other is not None:
                 self.mappings.pop(other, None)
@@ -55,24 +72,49 @@ class Controller:
 
     async def disconnect(self, ingress, egress) -> dict:
         async with self._lock:
+            self._require_healthy()
             ingress = self._validate_port(ingress)
             egress = self._validate_port(egress)
             if self.mappings.get(ingress) != egress:
                 raise ValueError("mapping does not exist")
 
-            await self._call(self.backend.delete_entry, self._to_dev(ingress))
+            try:
+                await self._call(self.backend.delete_entry, self._to_dev(ingress))
+            except Exception as exc:
+                raise BackendError(str(exc)) from exc
             self.mappings.pop(ingress, None)
             await self._persist()
             return {"status": "ok", "sync_state": self.sync}
 
     async def refresh(self) -> dict:
         async with self._lock:
-            entries = await self._call(self.backend.read_all)
-            self.mappings = {
-                self._to_ui(ingress_dev): self._to_ui(egress_dev)
-                for ingress_dev, egress_dev in entries
-            }
-            await self._persist()
+            self._require_healthy()
+            try:
+                entries = await self._call(self.backend.read_all)
+            except Exception as exc:
+                raise BackendError(str(exc)) from exc
+
+            mappings = {}
+            for ingress_dev, egress_dev in entries:
+                try:
+                    ingress = self._to_ui(ingress_dev)
+                except ValueError as exc:
+                    raise BackendError(
+                        f"device port {ingress_dev} has no UI port mapping"
+                    ) from exc
+                try:
+                    egress = self._to_ui(egress_dev)
+                except ValueError as exc:
+                    raise BackendError(
+                        f"device port {egress_dev} has no UI port mapping"
+                    ) from exc
+                mappings[ingress] = egress
+
+            self.mappings = mappings
+            if await self._persist():
+                # Refresh constructs mappings from the live device, so a
+                # successful save establishes a fresh, complete sync point.
+                self.sync = "in_sync"
             return {"status": "ok", "source": "tofino"}
 
     async def reconcile(self) -> None:
@@ -80,6 +122,16 @@ class Controller:
             try:
                 mappings, labels = await self._call(self.store.load_state)
             except Exception:
+                self.health = "unhealthy"
+                return
+
+            try:
+                for ingress, egress in mappings.items():
+                    self._validate_port(ingress)
+                    self._validate_port(egress)
+                    self._to_dev(ingress)
+                    self._to_dev(egress)
+            except ValueError:
                 self.health = "unhealthy"
                 return
 
@@ -135,6 +187,10 @@ class Controller:
             raise ValueError(f"port must be in range 1..{self.port_count}")
         return port
 
+    def _require_healthy(self) -> None:
+        if self.health == "unhealthy":
+            raise ValueError("controller is unhealthy; device mutations are unavailable")
+
     def _to_dev(self, ui_port: int) -> int:
         try:
             return self.port_map.to_dev(ui_port)
@@ -166,15 +222,16 @@ class Controller:
             seen.add(remove_ingress)
         return removed
 
-    async def _persist(self) -> None:
+    async def _persist(self) -> bool:
         try:
             await self._call(self.store.save_state, self.mappings, self.labels)
         except Exception:
             self.sync = "out_of_sync"
-            return
+            return False
 
-        if self.health == "healthy":
+        if self.sync == "out_of_sync":
             self.sync = "in_sync"
+        return True
 
     async def _backend_reachable(self) -> bool:
         for attempt in range(3):

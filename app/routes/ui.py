@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.auth import verify_credentials
+from app.controller import BackendError
 
 
 router = APIRouter()
@@ -98,6 +99,8 @@ async def create_mapping(
 
     try:
         result = await controller.connect(ingress, egress, force=force_bool)
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -126,6 +129,8 @@ async def delete_mapping(
     controller = _controller(request)
     try:
         await controller.disconnect(ingress, egress)
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -142,6 +147,8 @@ async def update_label(
     controller = _controller(request)
     try:
         await controller.set_label(port, label)
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -152,5 +159,10 @@ async def update_label(
 async def refresh(request: Request):
     _require_session(request)
     controller = _controller(request)
-    await controller.refresh()
+    try:
+        await controller.refresh()
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return templates.TemplateResponse(request, "panel.html", _panel_context(request))
