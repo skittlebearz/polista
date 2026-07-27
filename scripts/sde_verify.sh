@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # Checkpoint 5 verification, run INSIDE the SDE container (bind mount: /work).
-# Expects the portofino repo staged at /work/portofino.
+# Expects the polista repo staged at /work/polista.
 # Pattern follows /work/myproj/run.sh (out-of-tree program, -c with absolute paths).
 set -uo pipefail
-P4SRC=/work/portofino/p4/portofino.p4
-CONF=/work/portofino/p4/portofino.conf
-OUT=/work/portofino-out
-LOGS=/work/portofino-out
+P4SRC=/work/polista/p4/polista.p4
+CONF=/work/polista/p4/polista.conf
+OUT=/work/polista-out
+LOGS=/work/polista-out
 
 echo "### 1. compile"
 mkdir -p "$OUT"
-bf-p4c --target tofino --arch tna -o "$OUT/portofino.tofino" "$P4SRC" 2>&1 | tail -2
-[[ -f "$OUT/portofino.tofino/pipe/tofino.bin" ]] || { echo "COMPILE: FAILED"; exit 1; }
-[[ -f "$OUT/portofino.tofino/bfrt.json" ]] || { echo "COMPILE: no bfrt.json"; exit 1; }
+bf-p4c --target tofino --arch tna -o "$OUT/polista.tofino" "$P4SRC" 2>&1 | tail -2
+[[ -f "$OUT/polista.tofino/pipe/tofino.bin" ]] || { echo "COMPILE: FAILED"; exit 1; }
+[[ -f "$OUT/polista.tofino/bfrt.json" ]] || { echo "COMPILE: no bfrt.json"; exit 1; }
 echo "COMPILE: OK"
 
 echo "### 2. start model + switchd"
 # model insists on -p even with -c (prints usage and exits otherwise)
-"$SDE/run_tofino_model.sh" -p portofino -c "$CONF" -f /work/myproj/ports.json \
+"$SDE/run_tofino_model.sh" -p polista -c "$CONF" -f /work/myproj/ports.json \
     >"$LOGS/model.log" 2>&1 &
 MODEL_PID=$!
 "$SDE/run_switchd.sh" -c "$CONF" >"$LOGS/switchd.log" 2>&1 &
@@ -33,8 +33,8 @@ done
 [[ $READY -eq 1 ]] || { kill $SWITCHD_PID $MODEL_PID 2>/dev/null; exit 1; }
 
 echo "### 4. BFRT acceptance (coordinator-authored)"
-PYTHONPATH="$SDE_INSTALL/lib/python3.10/site-packages/tofino:/work/portofino${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 /work/portofino/scripts/bfrt_verify.py
+PYTHONPATH="$SDE_INSTALL/lib/python3.10/site-packages/tofino:/work/polista${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 /work/polista/scripts/bfrt_verify.py
 RC=$?
 echo "verify exit code: $RC"
 

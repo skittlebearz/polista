@@ -45,5 +45,5 @@ def load_config() -> Config:
         tofino_backend=tofino_backend,
         tofino_grpc_target=os.environ.get("TOFINO_GRPC_TARGET", "127.0.0.1:50051"),
         tofino_device_id=os.environ.get("TOFINO_DEVICE_ID", "0"),
-        tofino_program_name=os.environ.get("TOFINO_PROGRAM_NAME", "portofino"),
+        tofino_program_name=os.environ.get("TOFINO_PROGRAM_NAME", "polista"),
     )

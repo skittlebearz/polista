@@ -1,6 +1,6 @@
-# Portofino P4 dataplane (Tofino 1 / TNA)
+# Polista P4 dataplane (Tofino 1 / TNA)
 
-`portofino.p4` is a minimal TNA program, adopted from the verified skeleton in the
+`polista.p4` is a minimal TNA program, adopted from the verified skeleton in the
 SDE environment (open-p4studio **9.13.4**, `bf-p4c` **1.2.5.10**): one table keyed
 on the ingress port whose action sets the egress port. Unmapped ports hit the
 `drop` default action, so an unconnected port is simply dark.
@@ -24,23 +24,23 @@ SDE image ships no `p4.v1` protos or Python P4Runtime client (gate decision,
 Inside the SDE container:
 
 ```bash
-bf-p4c --target tofino --arch tna -o /work/portofino-out/portofino.tofino \
-       /work/portofino/p4/portofino.p4
+bf-p4c --target tofino --arch tna -o /work/polista-out/polista.tofino \
+       /work/polista/p4/polista.p4
 ```
 
 Note: `bf-p4c` emits `bfrt.json`; stock SDE `.conf` files reference `bf-rt.json`
-(the SDE's install step renames it). `portofino.conf` here uses the name the
+(the SDE's install step renames it). `polista.conf` here uses the name the
 compiler actually produces.
 
 ## Run against the emulator (tofino-model)
 
 Host prerequisite once per boot: `sudo sysctl -w vm.nr_hugepages=196`.
 
-From the open-p4studio repo, with this repo staged at `work/portofino`:
+From the open-p4studio repo, with this repo staged at `work/polista`:
 
 ```bash
 docker compose -f docker/compose.yaml run --rm sde \
-    bash /work/portofino/scripts/sde_verify.sh
+    bash /work/polista/scripts/sde_verify.sh
 ```
 
 That script compiles, boots model + switchd (out-of-tree `-c` conf, absolute
@@ -53,7 +53,7 @@ To serve the web UI against the emulator, run uvicorn **inside** the container
 
 ```bash
 PYTHONPATH=$SDE_INSTALL/lib/python3.10/site-packages/tofino \
-TOFINO_BACKEND=bfrt TOFINO_GRPC_TARGET=localhost:50052 TOFINO_PROGRAM_NAME=portofino \
+TOFINO_BACKEND=bfrt TOFINO_GRPC_TARGET=localhost:50052 TOFINO_PROGRAM_NAME=polista \
     uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 

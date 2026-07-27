@@ -68,7 +68,7 @@
       });
     }
   }
-  window.portofinoRedraw = redraw;
+  window.polistaRedraw = redraw;
   document.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : event.target.parentElement;
     var edit = target && target.closest(".label-edit");

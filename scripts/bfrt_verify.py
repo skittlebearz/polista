@@ -1,13 +1,13 @@
 """Checkpoint 5 acceptance — authored by the coordinator, not Codex.
 
 Runs INSIDE the SDE container against a live tofino-model + bf_switchd with the
-portofino P4 program loaded. Exercises BFRTBackend directly, then the full
+polista P4 program loaded. Exercises BFRTBackend directly, then the full
 Controller stack on top of it (reconcile / canonical conflict / disconnect /
 refresh). Requires only stdlib + bfrt_grpc — no FastAPI.
 
 Usage (inside container, from /work):
-    PYTHONPATH=$SDE_INSTALL/lib/python3.10/site-packages/tofino:/work/portofino \
-        python3 /work/portofino/scripts/bfrt_verify.py
+    PYTHONPATH=$SDE_INSTALL/lib/python3.10/site-packages/tofino:/work/polista \
+        python3 /work/polista/scripts/bfrt_verify.py
 """
 
 import asyncio
@@ -36,7 +36,7 @@ def check(name, cond, detail=""):
 
 
 def main():
-    backend = BFRTBackend("localhost:50052", 0, "portofino")
+    backend = BFRTBackend("localhost:50052", 0, "polista")
     try:
         # --- raw backend contract (spec section 5) ---------------------------
         check("status() True against live switchd", backend.status() is True)
@@ -95,7 +95,7 @@ def main():
         backend.close()  # idempotent
 
     # lease trap: a SECOND client must be able to connect after close()
-    b2 = BFRTBackend("localhost:50052", 0, "portofino")
+    b2 = BFRTBackend("localhost:50052", 0, "polista")
     check("re-connect after close (client_id lease released)", b2.status() is True)
     b2.close()
 

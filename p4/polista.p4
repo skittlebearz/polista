@@ -1,4 +1,4 @@
-/* Minimal TNA boilerplate for Portofino, verified against this SDE
+/* Minimal TNA boilerplate for Polista, verified against this SDE
  * (open-p4studio 9.13.4 / bf-p4c 1.2.5.10, Tofino 1, tna arch).
  *
  * One table, `port_map`, keyed on the ingress port, whose action sets the
@@ -6,8 +6,8 @@
  * plane owns the mapping and writes one entry per connection.
  *
  * Compile:
- *   bf-p4c --target tofino --arch tna -o /work/out/portofino.tofino \
- *          /work/portofino-skeleton/portofino.p4
+ *   bf-p4c --target tofino --arch tna -o /work/out/polista.tofino \
+ *          /work/polista-skeleton/polista.p4
  */
 #include <core.p4>
 #include <tna.p4>

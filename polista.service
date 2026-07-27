@@ -1,0 +1,26 @@
+# Expected install layout:
+#   /opt/polista/              app source tree
+#   /opt/polista/.venv/        Python virtualenv with runtime wheels installed
+#   /etc/polista/polista.env   app environment variables (see README)
+#
+# Example polista.env should define PORT_COUNT, MAPPINGS_FILE, PORT_MAP_FILE,
+# AUTH_FILE, SESSION_SECRET, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD,
+# TOFINO_BACKEND, TOFINO_GRPC_TARGET, TOFINO_DEVICE_ID, and TOFINO_PROGRAM_NAME.
+# It may also override UVICORN_HOST and UVICORN_PORT below.
+
+[Unit]
+Description=Polista Tofino Port Cross-Connect Controller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/polista
+Environment=UVICORN_HOST=127.0.0.1
+Environment=UVICORN_PORT=8000
+EnvironmentFile=/etc/polista/polista.env
+ExecStart=/opt/polista/.venv/bin/uvicorn app.main:app --host ${UVICORN_HOST} --port ${UVICORN_PORT}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

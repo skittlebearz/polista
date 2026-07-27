@@ -12,7 +12,7 @@ from app.store import load_auth
 
 _basic = HTTPBasic(auto_error=False)
 _password_hasher = PasswordHasher()
-_dummy_password_hash = _password_hasher.hash("portofino-dummy-password")
+_dummy_password_hash = _password_hasher.hash("polista-dummy-password")
 
 
 def ensure_auth_file(config) -> None:

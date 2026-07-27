@@ -1,9 +1,9 @@
 """Checkpoint 4 acceptance tests — authored by the coordinator, not Codex.
 
-Pinned client interface (spec Section 17 step 4): client/portofino_client.py,
+Pinned client interface (spec Section 17 step 4): client/polista_client.py,
 stdlib-only (urllib), no direct gRPC, HTTP Basic auth.
 
-  class PortofinoClient:
+  class PolistaClient:
       __init__(base_url: str, username: str, password: str)
       get_health() -> dict
       get_ports() -> dict
@@ -14,8 +14,8 @@ stdlib-only (urllib), no direct gRPC, HTTP Basic auth.
       refresh() -> dict
       get_labels() -> dict
       set_label(port, label) -> dict
-  class PortofinoError(Exception)           # non-2xx other than the 409 conflict case
-  class ConflictError(PortofinoError)       # .would_remove: list[dict]
+  class PolistaError(Exception)           # non-2xx other than the 409 conflict case
+  class ConflictError(PolistaError)       # .would_remove: list[dict]
 
 Runs against a real uvicorn subprocess on the fake backend.
 """
@@ -93,9 +93,9 @@ def server(tmp_path_factory):
 @pytest.fixture
 def api(server):
     sys.path.insert(0, str(REPO / "client"))
-    from portofino_client import PortofinoClient
+    from polista_client import PolistaClient
 
-    c = PortofinoClient(server, USER, PASSWORD)
+    c = PolistaClient(server, USER, PASSWORD)
     # clean slate per test
     for m in c.get_mappings():
         c.disconnect(m["ingress"], m["egress"])
@@ -118,7 +118,7 @@ def test_connect_disconnect_cycle(api):
 
 
 def test_conflict_raises_then_force_applies(api):
-    from portofino_client import ConflictError
+    from polista_client import ConflictError
 
     api.connect(1, 2)
     api.connect(7, 5)
@@ -132,10 +132,10 @@ def test_conflict_raises_then_force_applies(api):
 
 
 def test_bad_credentials_raise(server):
-    from portofino_client import PortofinoClient, PortofinoError
+    from polista_client import PolistaClient, PolistaError
 
-    bad = PortofinoClient(server, USER, "wrong")
-    with pytest.raises(PortofinoError):
+    bad = PolistaClient(server, USER, "wrong")
+    with pytest.raises(PolistaError):
         bad.get_mappings()
 
 
@@ -146,7 +146,7 @@ def test_labels_and_refresh(api):
 
 
 def test_invalid_port_raises(api):
-    from portofino_client import PortofinoError
+    from polista_client import PolistaError
 
-    with pytest.raises(PortofinoError):
+    with pytest.raises(PolistaError):
         api.connect(0, 99)

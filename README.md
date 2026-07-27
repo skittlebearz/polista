@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Portofino logo" width="280">
+  <img src="docs/logo.png" alt="Polista logo" width="280">
 </p>
 
-<h1 align="center">Portofino</h1>
+<h1 align="center">Polista</h1>
 
 <p align="center">
   <b>A patch-panel controller for Intel Tofino.</b><br>
@@ -10,12 +10,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="Portofino UI: patch panel with three connections" width="800">
+  <img src="docs/screenshot.png" alt="Polista UI: patch panel with three connections" width="800">
 </p>
 
 ---
 
-Portofino turns a Tofino switch into a remotely controlled **patch panel**: every
+Polista turns a Tofino switch into a remotely controlled **patch panel**: every
 ingress port can be cross-connected to exactly one egress port, and every packet
 arriving on a mapped port is forwarded to its counterpart — no L2/L3 lookups, no
 learning, no config files on the switch. Ports with no mapping drop everything.
@@ -26,7 +26,7 @@ learning, no config files on the switch. Ports with no mapping drop everything.
   Conflicting connections show a confirmation dialog naming exactly what would be
   replaced — in the UI and as HTTP 409 in the API. Mappings are unidirectional;
   self-connect (`1 -> 1`) is allowed.
-- **The switch is the source of truth.** On startup Portofino clears its table and
+- **The switch is the source of truth.** On startup Polista clears its table and
   replays desired state onto the device; a Refresh pulls live device state back.
   Honest health/sync states (`in_sync`, `out_of_sync`, `partial_sync`,
   `unhealthy`) are surfaced in the UI and `GET /health`.
@@ -53,7 +53,7 @@ learning, no config files on the switch. Ports with no mapping drop everything.
                    └─────────────────────────────────────┘
 ```
 
-- The P4 program (`p4/portofino.p4`) has a single table: exact match on ingress
+- The P4 program (`p4/polista.p4`) has a single table: exact match on ingress
   device port, action sets the egress port, default action drops.
 - The app translates between **UI port numbers** (1..N, what you see and label)
   and **device ports** via a JSON port map that must be a bijection.
@@ -66,7 +66,7 @@ learning, no config files on the switch. Ports with no mapping drop everything.
 Requires Python 3.9+.
 
 ```sh
-git clone https://github.com/skittlebearz/portofino && cd portofino
+git clone https://github.com/skittlebearz/polista && cd polista
 python3 -m venv .venv
 .venv/bin/pip install fastapi 'uvicorn[standard]' jinja2 python-multipart itsdangerous argon2-cffi
 cp data/port_map.json.example data/port_map.json
@@ -91,7 +91,7 @@ tells you exactly which mappings would be removed before anything changes.
 
 The real backend speaks **BF Runtime gRPC** (`bfrt_grpc`, port 50052) to
 `bf_switchd`, using the SDE's own Python client. Because `bfrt_grpc` and its
-pinned protobuf ship inside the SDE, the recommended setup is to run Portofino
+pinned protobuf ship inside the SDE, the recommended setup is to run Polista
 **where the SDE lives** (e.g. inside an [open-p4studio](https://github.com/p4lang/open-p4studio)
 container) rather than matching gRPC versions on a separate host.
 
@@ -103,7 +103,7 @@ container) rather than matching gRPC versions on a separate host.
 
 ```sh
 TOFINO_BACKEND=bfrt \
-TOFINO_GRPC_TARGET=localhost:50052 TOFINO_DEVICE_ID=0 TOFINO_PROGRAM_NAME=portofino \
+TOFINO_GRPC_TARGET=localhost:50052 TOFINO_DEVICE_ID=0 TOFINO_PROGRAM_NAME=polista \
 PYTHONPATH="$SDE_INSTALL/lib/python3.10/site-packages/tofino:$PYTHONPATH" \
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8888
 ```
@@ -145,9 +145,9 @@ Validation errors return `400` with a message; device/backend failures return
 A dependency-free Python client wraps all of it:
 
 ```python
-from portofino_client import PortofinoClient, ConflictError  # client/portofino_client.py
+from polista_client import PolistaClient, ConflictError  # client/polista_client.py
 
-pf = PortofinoClient("http://patchpanel:8000", "admin", "secret")
+pf = PolistaClient("http://patchpanel:8000", "admin", "secret")
 try:
     pf.connect(1, 5)
 except ConflictError as e:
@@ -168,7 +168,7 @@ Everything is environment variables — no config file for the app itself.
 | `SESSION_SECRET` | cookie signing key — set a real one | dev value |
 | `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD` | first-run credentials | `admin` / `admin` |
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
-| `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `portofino` |
+| `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `polista` |
 
 ## Development & tests
 
@@ -188,7 +188,7 @@ must remove **both** and add `1->5` — and refuse to do so without `force`.
 
 ## Deployment
 
-Ship the source tree + a venv; run under systemd (`portofino.service` included).
+Ship the source tree + a venv; run under systemd (`polista.service` included).
 There is deliberately nothing to build on the target machine.
 
 ## Repository layout

@@ -4,17 +4,17 @@ import urllib.error
 import urllib.request
 
 
-class PortofinoError(Exception):
+class PolistaError(Exception):
     pass
 
 
-class ConflictError(PortofinoError):
+class ConflictError(PolistaError):
     def __init__(self, would_remove):
         super().__init__("mapping conflict")
         self.would_remove = would_remove
 
 
-class PortofinoClient:
+class PolistaClient:
     def __init__(self, base_url: str, username: str, password: str):
         self.base_url = base_url.rstrip("/")
         token = f"{username}:{password}".encode("utf-8")
@@ -78,11 +78,11 @@ class PortofinoClient:
             if exc.code == 409 and method == "POST" and path == "/mappings":
                 conflict_body = self._load_json(response_text)
                 raise ConflictError(conflict_body["would_remove"]) from exc
-            raise PortofinoError(
+            raise PolistaError(
                 f"HTTP {exc.code}: {response_text}"
             ) from exc
         except urllib.error.URLError as exc:
-            raise PortofinoError(str(exc)) from exc
+            raise PolistaError(str(exc)) from exc
 
         return self._load_json(response_text)
 

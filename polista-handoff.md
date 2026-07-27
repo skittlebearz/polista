@@ -1,4 +1,4 @@
-# Portofino — Tofino Port Cross-Connect Controller — Coding Agent Handoff
+# Polista — Tofino Port Cross-Connect Controller — Coding Agent Handoff
 
 **Status:** Implementation-ready. Stack and architecture are locked (Section 2). Build against this directly; deviations from locked decisions need sign-off.
 
@@ -118,7 +118,7 @@ Minimal.
 
 ```
 p4/
-  portofino.p4
+  polista.p4
   README.md   # P4 Studio / Tofino 1 build + emulator run notes (agent fills target boilerplate)
 ```
 
@@ -127,7 +127,7 @@ p4/
 ## 7. FastAPI App Structure
 
 ```
-portofino/
+polista/
   app/
     main.py            # FastAPI(); lifespan → reconcile on startup; mount routes + middleware + static
     config.py          # load + validate env (Section 15)
@@ -149,10 +149,10 @@ portofino/
       htmx.min.js      # vendored (committed to repo)
       lines.js         # ~30-40 lines: draw/redraw SVG connection lines
       app.css          # hand-written minimal CSS (no Tailwind/build)
-  p4/  portofino.p4  README.md
+  p4/  polista.p4  README.md
   data/                # runtime JSON files (or paths via env)
   requirements.txt
-  portofino.service    # systemd unit
+  polista.service    # systemd unit
   README.md
 ```
 
@@ -338,7 +338,7 @@ Runtime: **Python 3.9+**. Frontend deps are **vendored static files** (`htmx.min
 
 With `TOFINO_BACKEND=fake`, the entire app runs on just the top five packages — no `grpcio` needed for dev/UI work.
 
-**BFRT alternative:** `bfrt_grpc` is not on PyPI; it ships inside the Intel SDE and runs in the SDE's Python. Choosing P4Runtime (default) keeps Portofino in a clean venv.
+**BFRT alternative:** `bfrt_grpc` is not on PyPI; it ships inside the Intel SDE and runs in the SDE's Python. Choosing P4Runtime (default) keeps Polista in a clean venv.
 
 ---
 

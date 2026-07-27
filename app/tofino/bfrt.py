@@ -8,7 +8,7 @@ from app.tofino.backend import TofinoBackend
 
 
 class BFRTBackend(TofinoBackend):
-    """Manage Portofino's ingress-to-egress table through BFRT."""
+    """Manage Polista's ingress-to-egress table through BFRT."""
 
     TABLE_NAME = "pipe.Ingress.port_map"
     KEY_FIELD = "ig_intr_md.ingress_port"

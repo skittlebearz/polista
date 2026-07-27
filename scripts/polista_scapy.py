@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Scapy helper for the Portofino SDE playground — speaks UI port numbers.
+"""Scapy helper for the Polista SDE playground — speaks UI port numbers.
 
 Run INSIDE the SDE container (needs the model's veths + raw sockets):
     docker compose -f docker/compose.yaml exec sde \
-        python3 /work/portofino/scripts/pf_scapy.py send 1 --expect 2
+        python3 /work/polista/scripts/pf_scapy.py send 1 --expect 2
 
 UI port u <-> device port (u-1) <-> test veth(2*(u-1)+1)   [ports.json convention]
 
@@ -37,7 +37,7 @@ def make_packet(marker: str):
 
 
 def cmd_send(args):
-    marker = f"portofino-{random.randint(0, 1 << 30)}"
+    marker = f"polista-{random.randint(0, 1 << 30)}"
     pkt = make_packet(marker)
     sniffer = None
     if args.expect:

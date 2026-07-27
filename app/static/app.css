@@ -7,7 +7,7 @@
   --muted: #b9c7cc;
   --line: #ff8a24;
   --border: #31536a;
-  --accent: #ef7157;
+  --accent: #6ea8d8;
   --ok: #65c58a;
   --warn: #f5b548;
   --danger: #ed675a;
@@ -80,7 +80,7 @@ input:focus, button:focus-visible { outline: 2px solid #ff9b45; outline-offset: 
 .port.editing .label-text, .port.editing .label-edit { display: none; }
 .port.editing input { display: block; }
 .port.connected, [data-side][data-port].connected { border-color: #4b9277; background: #123e43; }
-.port.selected, [data-side][data-port].selected { border-color: var(--accent); background: #243d50; box-shadow: 0 0 0 2px rgb(239 113 87 / 30%), 0 0 13px rgb(239 113 87 / 18%); }
+.port.selected, [data-side][data-port].selected { border-color: var(--accent); background: #243d50; box-shadow: 0 0 0 2px rgb(110 168 216 / 34%), 0 0 13px rgb(110 168 216 / 20%); }
 .port.connected-to-selected, [data-side][data-port].connected-to-selected { border-color: var(--line); background: #42351d; box-shadow: 0 0 0 2px rgb(255 138 36 / 32%), 0 0 14px rgb(255 138 36 / 30%); }
 .port.conflict-pending, [data-side][data-port].conflict-pending { border-color: var(--danger); background: #47262d; }
 .connection { stroke: var(--line); stroke-width: 3; stroke-linecap: round; opacity: .9; }
