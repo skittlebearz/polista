@@ -67,6 +67,28 @@ Requires Python 3.9+.
 
 ```sh
 git clone https://github.com/skittlebearz/polista && cd polista
+python3 scripts/setup.py
+```
+
+The setup script asks a handful of questions — backend, port count, bind
+address, port map, login — then creates the virtualenv, installs the
+dependencies, writes `data/port_map.json` and `data/mappings.json`, generates a
+random `SESSION_SECRET`, and saves everything to `polista.env` (mode 0600,
+gitignored). It offers to start the app when it finishes; after that:
+
+```sh
+bash scripts/run.sh          # reads polista.env, serves the UI
+```
+
+Add `--yes` to take every default without being asked (fake backend, 8 ports,
+`127.0.0.1:8000`, user `admin` with a generated password), or `--no-venv` to
+write config only. Re-running it is safe: existing cross-connects are kept, and
+an existing auth file is left alone unless you ask to replace it.
+
+<details>
+<summary>Manual setup, if you would rather not use the script</summary>
+
+```sh
 python3 -m venv .venv
 .venv/bin/pip install fastapi uvicorn jinja2 python-multipart itsdangerous
 cp data/port_map.json.example data/port_map.json
@@ -78,6 +100,8 @@ SESSION_SECRET=change-me BOOTSTRAP_USERNAME=admin BOOTSTRAP_PASSWORD=change-me \
 TOFINO_BACKEND=fake \
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+</details>
 
 Open http://127.0.0.1:8000/ui and log in with the bootstrap credentials (a
 standard-library scrypt auth file is created on first start; the plaintext is
@@ -165,6 +189,8 @@ except ConflictError as e:
 ## Configuration
 
 Everything is environment variables — no config file for the app itself.
+`scripts/setup.py` writes them to `polista.env`, which both `scripts/run.sh` and
+`polista.service` (via `EnvironmentFile=`) read.
 
 | Variable | Meaning | Default |
 |---|---|---|
@@ -176,13 +202,15 @@ Everything is environment variables — no config file for the app itself.
 | `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD` | first-run credentials | `admin` / `admin` |
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
 | `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `polista` |
+| `HTTP_BIND_ADDR` | `HOST:PORT` used by `scripts/run.sh` | `127.0.0.1:8000` |
 
 ## Development & tests
 
 ```sh
 .venv/bin/pip install pytest pytest-asyncio httpx
-.venv/bin/python -m pytest                 # 54 tests: 1:1 semantics, API, UI routes,
-                                           # client integration, failure states
+.venv/bin/python -m pytest                 # 80 tests: 1:1 semantics, API, UI routes,
+                                           # client integration, failure states,
+                                           # setup wizard
 .venv/bin/pip install playwright           # optional, uses your system chromium
 .venv/bin/python scripts/ui_verify.py      # drives the real UI headless: clicks,
                                            # conflict dialog, SVG lines, redraws
@@ -205,7 +233,8 @@ app/            FastAPI app: controller, stores, auth, routes, templates, static
   tofino/       device backends: fake (in-memory) and bfrt (BF Runtime gRPC)
 client/         stdlib-only Python REST client
 p4/             TNA dataplane, switchd conf, build/run notes
-scripts/        verification harnesses + SDE playground launcher + scapy helper
+scripts/        setup wizard + launcher, verification harnesses, SDE playground,
+                scapy helper
 tests/          acceptance tests (pytest)
 data/           example port map / mappings files
 ```

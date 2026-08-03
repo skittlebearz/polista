@@ -3,9 +3,10 @@
 #   /opt/polista/.venv/        Python virtualenv with runtime wheels installed
 #   /etc/polista/polista.env   app environment variables (see README)
 #
-# Example polista.env should define PORT_COUNT, MAPPINGS_FILE, PORT_MAP_FILE,
-# AUTH_FILE, SESSION_SECRET, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD,
-# TOFINO_BACKEND, TOFINO_GRPC_TARGET, TOFINO_DEVICE_ID, and TOFINO_PROGRAM_NAME.
+# polista.env should define PORT_COUNT, MAPPINGS_FILE, PORT_MAP_FILE, AUTH_FILE,
+# SESSION_SECRET, BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD, TOFINO_BACKEND,
+# TOFINO_GRPC_TARGET, TOFINO_DEVICE_ID, and TOFINO_PROGRAM_NAME. Generate one
+# with `python3 scripts/setup.py` and copy it into /etc/polista/.
 # It may also override UVICORN_HOST and UVICORN_PORT below.
 
 [Unit]
