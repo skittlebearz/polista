@@ -1,9 +1,8 @@
 fastapi
-uvicorn[standard]
+uvicorn
 jinja2
 python-multipart      # HTML form posts
 itsdangerous          # required by Starlette SessionMiddleware
-argon2-cffi           # password hashing
 # --- real backend only (Checkpoint 5+; not needed with TOFINO_BACKEND=fake) ---
 # grpcio
 # protobuf

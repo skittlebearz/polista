@@ -3,7 +3,7 @@
 Pinned interfaces for Checkpoint 2 (spec sections 2, 10.3, 11):
 
   app.auth:
-    ensure_auth_file(config) -> None      # bootstrap AUTH_FILE from BOOTSTRAP_* if absent (argon2)
+    ensure_auth_file(config) -> None      # bootstrap AUTH_FILE from BOOTSTRAP_* if absent (scrypt)
     verify_credentials(username, password, auth_path) -> bool
     require_user                          # FastAPI dependency: accepts session cookie OR HTTP Basic,
                                           # returns username, raises HTTPException(401) otherwise
@@ -20,6 +20,7 @@ Pinned interfaces for Checkpoint 2 (spec sections 2, 10.3, 11):
 """
 
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -89,12 +90,27 @@ def test_session_login_logout_cycle(client):
     assert client.get("/mappings").status_code == 401
 
 
-def test_auth_file_bootstrapped_argon2_never_plaintext(client):
+def test_auth_file_bootstrapped_scrypt_never_plaintext(client):
     raw = client.auth_file.read_text()
     data = json.loads(raw)
     assert data["username"] == USER
-    assert data["password_hash"].startswith("$argon2")
+    assert data["password_hash"].startswith("scrypt$")
     assert PASSWORD not in raw
+
+
+def test_legacy_argon2_auth_file_requires_explicit_rebootstrap(tmp_path):
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text(json.dumps({"username": USER, "password_hash": "$argon2id$legacy"}))
+
+    from app.auth import ensure_auth_file
+
+    config = SimpleNamespace(
+        auth_file=auth_file,
+        bootstrap_username=USER,
+        bootstrap_password=PASSWORD,
+    )
+    with pytest.raises(RuntimeError, match="legacy Argon2"):
+        ensure_auth_file(config)
 
 
 # --- REST semantics (spec 11) --------------------------------------------

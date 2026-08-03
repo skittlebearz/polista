@@ -24,7 +24,7 @@ This supersedes any earlier Phoenix/Elixir version of the plan. The *semantics* 
 | Tofino / gRPC | **In-process Python backend module** (P4Runtime default), behind an interface with a **fake** implementation | `grpcio` + `p4runtime` live in the app. Fake backend lets the entire app + UI be built and tested with **zero** P4 Studio access. |
 | Write serialization | **Single `asyncio.Lock`** around every mutation path | Serializes all writes by construction; protects the 1:1 invariant and JSON files. |
 | Backend call style | Backend methods are **synchronous** (match `grpcio`/`bfrt_grpc` examples); the Controller calls them via `asyncio.to_thread` inside the lock | Keeps real-backend code looking exactly like Intel SDE examples; keeps the event loop unblocked. |
-| Auth | **Session cookie for UI** (Starlette `SessionMiddleware`), **HTTP Basic for API**, both resolving to the same user check; **argon2** hashing | Built into FastAPI/Starlette; no extra auth system. |
+| Auth | **Session cookie for UI** (Starlette `SessionMiddleware`), **HTTP Basic for API**, both resolving to the same user check; standard-library **scrypt** hashing | Built into Python/FastAPI/Starlette; no extra password-hashing package. |
 | Port map | **Must be a bijection**, validated at startup | Refresh translates device→UI; ambiguous otherwise. See Section 3.4. |
 | P4Runtime vs BFRT | **P4Runtime default**, isolated behind the backend interface | Trivial table (exact match, one action) → P4Runtime is enough and keeps the app in a clean pip venv instead of coupled to the SDE's Python. BFRT remains a drop-in alt backend if a table feature forces it. |
 
@@ -134,7 +134,7 @@ polista/
     controller.py      # Controller: async methods + asyncio.Lock; in-mem state, health/sync
     port_map.py        # load + BIJECTION validation; ui<->dev translation
     store.py           # JSON load/atomic-save: mappings + labels; separate port map + auth loaders
-    auth.py            # argon2 verify; bootstrap from env; session + Basic Auth dependencies
+    auth.py            # scrypt verify; bootstrap from env; session + Basic Auth dependencies
     tofino/
       backend.py       # Protocol/ABC (Section 5)
       fake.py          # FakeBackend
@@ -247,7 +247,7 @@ Every UI port shown needs a valid device port. Invalid/missing/non-bijective →
 
 ### 10.3 Auth (`AUTH_FILE`)
 ```json
-{ "username": "admin", "password_hash": "<argon2 hash>" }
+{ "username": "admin", "password_hash": "<scrypt hash>" }
 ```
 Never plaintext. Bootstrapped from `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD` on first start if absent.
 
@@ -324,11 +324,10 @@ AUTH_FILE             BOOTSTRAP_PASSWORD     TOFINO_PROGRAM_NAME
 **`requirements.txt`** (minimal):
 ```
 fastapi
-uvicorn[standard]
+uvicorn
 jinja2
 python-multipart      # HTML form posts
 itsdangerous          # required by Starlette SessionMiddleware
-argon2-cffi           # password hashing
 grpcio                # real backend only (the one native dep)
 protobuf              # real backend only
 p4runtime             # P4Runtime stubs (real backend only)
@@ -347,7 +346,7 @@ With `TOFINO_BACKEND=fake`, the entire app runs on just the top five packages �
 Build entirely against `FakeBackend` first; touch P4 Studio last.
 
 1. **App core.** FastAPI skeleton, `config`, `store` (atomic JSON), `port_map` (+ bijection validation), `Controller` (asyncio.Lock) with connect/disconnect/refresh/reconcile + reads, `FakeBackend`. Hard-test the 1:1 conflict logic — the `1->2`,`7->5`,`1->5` case is the canonical unit test.
-2. **JSON REST API + auth.** Routes per Section 11; session + Basic Auth; argon2; bootstrap-from-env.
+2. **JSON REST API + auth.** Routes per Section 11; session + Basic Auth; scrypt; bootstrap-from-env.
 3. **HTMX UI.** `base/panel/_ports/_conflict/login` templates; `/ui/*` routes returning partials; client selection + `lines.js` SVG drawer; conflict dialog; label edit; refresh; health indicator.
 4. **Python client.** Thin REST wrapper: `get_ports`, `get_mappings`, `connect(ingress, egress, force=False)`, `disconnect`, `refresh`, `get_labels`, `set_label`. No direct gRPC.
 5. **P4 dataplane + real backend.** Fill Tofino 1 / P4 Studio boilerplate; implement `P4RuntimeBackend`; verify in emulator; swap `TOFINO_BACKEND=p4runtime`.

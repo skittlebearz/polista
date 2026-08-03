@@ -68,7 +68,7 @@ Requires Python 3.9+.
 ```sh
 git clone https://github.com/skittlebearz/polista && cd polista
 python3 -m venv .venv
-.venv/bin/pip install fastapi 'uvicorn[standard]' jinja2 python-multipart itsdangerous argon2-cffi
+.venv/bin/pip install fastapi uvicorn jinja2 python-multipart itsdangerous
 cp data/port_map.json.example data/port_map.json
 cp data/mappings.json.example data/mappings.json
 
@@ -79,8 +79,15 @@ TOFINO_BACKEND=fake \
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000/ui and log in with the bootstrap credentials (an
-argon2-hashed auth file is created on first start; the plaintext is never stored).
+Open http://127.0.0.1:8000/ui and log in with the bootstrap credentials (a
+standard-library scrypt auth file is created on first start; the plaintext is
+never stored).
+
+Upgrading from an Argon2-based release requires a one-time auth-file
+re-bootstrap. Stop Polista, confirm that `BOOTSTRAP_USERNAME` and
+`BOOTSTRAP_PASSWORD` still contain the intended credentials, move the existing
+`AUTH_FILE` aside as a backup, and restart. Polista refuses to silently replace a
+legacy auth file.
 
 **Using the panel:** click an ingress port (left), then an egress port (right) to
 connect them. Click a connected pair to disconnect it. Edit the text field on any
@@ -164,7 +171,7 @@ Everything is environment variables — no config file for the app itself.
 | `PORT_COUNT` | number of UI ports per column | `8` |
 | `MAPPINGS_FILE` | desired state + labels (JSON, written atomically) | `data/mappings.json` |
 | `PORT_MAP_FILE` | UI&rarr;device port bijection (JSON) | `data/port_map.json` |
-| `AUTH_FILE` | single user, argon2 hash (bootstrapped on first run) | `data/auth.json` |
+| `AUTH_FILE` | single user, scrypt hash (bootstrapped on first run) | `data/auth.json` |
 | `SESSION_SECRET` | cookie signing key — set a real one | dev value |
 | `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD` | first-run credentials | `admin` / `admin` |
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
@@ -202,4 +209,3 @@ scripts/        verification harnesses + SDE playground launcher + scapy helper
 tests/          acceptance tests (pytest)
 data/           example port map / mappings files
 ```
-
