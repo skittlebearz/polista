@@ -17,7 +17,6 @@ import argparse
 import json
 import os
 import secrets
-import shutil
 import subprocess
 import sys
 from getpass import getpass
@@ -26,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT / "polista.env"
 VENV_DIR = ROOT / ".venv"
+VENDOR_DIR = ROOT / "vendor"
 
 DEFAULT_PORT_COUNT = 8
 DEFAULT_BIND = "127.0.0.1:8000"
@@ -39,13 +39,9 @@ DEFAULT_PROGRAM_NAME = "polista"
 
 EMPTY_STATE = {"mappings": [], "labels": {}, "last_sync_status": "ok"}
 
-# bfrt_grpc ships inside the SDE, not on PyPI, and is built against the SDE's
-# own interpreter. These are the paths under $SDE_INSTALL where it turns up.
-SDE_PYTHON_SUBDIRS = (
-    "lib/python{major}.{minor}/site-packages/tofino",
-    "lib/python{major}.{minor}/site-packages",
-)
-SDE_PYTHON_VERSIONS = ((3, 10), (3, 8), (3, 9), (3, 11), (3, 12))
+# bfrt_grpc is vendored (see vendor/README.md), so the bfrt backend only needs
+# these gRPC wheels -- no SDE on the box, no matching its interpreter.
+BFRT_REQUIREMENTS = ("grpcio", "grpcio-status", "six")
 
 
 class Abort(Exception):
@@ -177,57 +173,20 @@ def custom_port_map(value: str, port_count: int) -> dict:
     return {str(ui): dev for ui, dev in enumerate(device_ports, start=1)}
 
 
-def sde_install_dir(value: str) -> str:
-    path = Path(value).expanduser()
-    if not path.is_dir():
-        raise ValueError(f"{path} is not a directory")
-    if not sde_python_paths(path):
-        raise ValueError(
-            f"no python site-packages under {path} — expected e.g. "
-            f"{path}/lib/python3.10/site-packages/tofino. Point this at "
-            "$SDE_INSTALL (usually <sde>/install), not the SDE root"
-        )
-    return str(path)
+# ------------------------------------------------------------------------- bfrt
 
 
-# -------------------------------------------------------------------------- SDE
+def probe_bfrt(interpreter: str | None = None) -> tuple[bool, str]:
+    """Try to import the vendored bfrt_grpc the way the app will.
 
-
-def sde_python_paths(install_dir: Path) -> list[str]:
-    """Existing SDE site-packages dirs, in PYTHONPATH order."""
-    found = []
-    for major, minor in SDE_PYTHON_VERSIONS:
-        for template in SDE_PYTHON_SUBDIRS:
-            candidate = install_dir / template.format(major=major, minor=minor)
-            if candidate.is_dir():
-                found.append(str(candidate))
-        if found:
-            # Stick with the first interpreter version that exists; mixing
-            # site-packages across versions is how protobuf mismatches start.
-            break
-    return found
-
-
-def guess_sde_install() -> str:
-    """Best guess at $SDE_INSTALL from the environment, else empty."""
-    for variable in ("SDE_INSTALL", "SDE"):
-        value = os.environ.get(variable)
-        if not value:
-            continue
-        path = Path(value)
-        if variable == "SDE" and not sde_python_paths(path):
-            path = path / "install"
-        if sde_python_paths(path):
-            return str(path)
-    return ""
-
-
-def probe_bfrt(python_paths: list[str], interpreter: str | None = None) -> tuple[bool, str]:
-    """Try to import bfrt_grpc the way the app will. Returns (ok, detail)."""
+    Returns (ok, detail). A failure here is almost always the gRPC deps not
+    being installed yet, not anything to do with the SDE.
+    """
     interpreter = interpreter or sys.executable
     env = dict(os.environ)
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = os.pathsep.join([*python_paths, existing]) if existing else os.pathsep.join(python_paths)
+    vendor = str(VENDOR_DIR)
+    env["PYTHONPATH"] = f"{vendor}{os.pathsep}{existing}" if existing else vendor
     try:
         result = subprocess.run(
             [interpreter, "-c", "import bfrt_grpc.client; print('ok')"],
@@ -242,21 +201,6 @@ def probe_bfrt(python_paths: list[str], interpreter: str | None = None) -> tuple
         return True, ""
     detail = (result.stderr or result.stdout).strip().splitlines()
     return False, detail[-1] if detail else f"exit {result.returncode}"
-
-
-def sde_interpreters(install_dir: Path) -> list[str]:
-    """Interpreters worth trying for bfrt_grpc, most likely first."""
-    candidates = []
-    for major, minor in SDE_PYTHON_VERSIONS:
-        for name in (f"python{major}.{minor}",):
-            local = install_dir / "bin" / name
-            if local.exists():
-                candidates.append(str(local))
-            found = shutil.which(name)
-            if found:
-                candidates.append(found)
-    # De-duplicate, preserving order.
-    return list(dict.fromkeys(candidates))
 
 
 # ------------------------------------------------------------------------ files
@@ -396,68 +340,28 @@ def collect_answers(prompter: Prompter) -> dict:
             prompter.text("Tofino device id", DEFAULT_DEVICE_ID, lambda v: int(v))
         )
         answers["program_name"] = prompter.text("P4 program name", DEFAULT_PROGRAM_NAME)
-        answers.update(collect_sde(prompter))
 
     return answers
 
 
-def collect_sde(prompter: Prompter) -> dict:
-    """Locate the SDE's bfrt_grpc and work out how Polista can import it.
+def check_bfrt_deps(venv_created: bool) -> None:
+    """Report whether the vendored bfrt_grpc can actually be imported.
 
-    This is the step that decides whether the bfrt backend will work at all:
-    bfrt_grpc lives in the SDE and is built against the SDE's interpreter, so a
-    plain `.venv` on the host cannot import it no matter what is installed.
+    Nothing to configure here: the client is in vendor/, so the only question is
+    whether its gRPC dependencies are installed. Advisory only -- a venv built
+    later in this run will supply them.
     """
-    guess = guess_sde_install()
-    if guess:
-        print(f"\nFound an SDE install at {guess} (from $SDE_INSTALL/$SDE).")
-    else:
-        print(
-            "\nThe bfrt backend needs the SDE's bfrt_grpc module, which is not on PyPI.\n"
-            "Point this at $SDE_INSTALL, e.g. /home/you/bf-sde-9.13.0/install."
-        )
-
-    install = prompter.text("SDE install directory", guess, sde_install_dir)
-    python_paths = sde_python_paths(Path(install))
-
-    ok, detail = probe_bfrt(python_paths)
+    ok, detail = probe_bfrt()
     if ok:
-        print(f"  bfrt_grpc imports cleanly with {sys.executable}.")
-        return {"sde_install": install, "sde_python_path": os.pathsep.join(python_paths),
-                "sde_interpreter": ""}
+        print("\nThe vendored bfrt_grpc imports cleanly — no SDE needed to run Polista.")
+        return
 
-    print(f"  ! {sys.executable} cannot import bfrt_grpc: {detail}")
-
-    # The running interpreter is usually the wrong one -- bfrt_grpc and its
-    # pinned protobuf are compiled for the SDE's Python. Try the ones that fit.
-    for interpreter in sde_interpreters(Path(install)):
-        if interpreter == sys.executable:
-            continue
-        ok, detail = probe_bfrt(python_paths, interpreter)
-        if ok:
-            print(f"  bfrt_grpc imports cleanly with {interpreter}.")
-            print(
-                "  Polista must run on that interpreter, so scripts/run.sh will use it\n"
-                "  instead of the virtualenv. It needs the runtime deps:\n"
-                f"    {interpreter} -m pip install --user "
-                "fastapi uvicorn jinja2 python-multipart itsdangerous"
-            )
-            return {
-                "sde_install": install,
-                "sde_python_path": os.pathsep.join(python_paths),
-                "sde_interpreter": interpreter,
-            }
-
-    print(
-        "  ! No interpreter here could import bfrt_grpc. PYTHONPATH is still being\n"
-        "    written, so you can fix the environment and re-run scripts/run.sh —\n"
-        "    Polista will report the reason on /health until then."
-    )
-    return {
-        "sde_install": install,
-        "sde_python_path": os.pathsep.join(python_paths),
-        "sde_interpreter": "",
-    }
+    print(f"\n! bfrt_grpc cannot be imported yet: {detail}")
+    if venv_created:
+        print("  The virtualenv this run creates installs the gRPC deps, which should fix it.")
+    else:
+        print(f"  Install the bfrt dependencies: pip install {' '.join(BFRT_REQUIREMENTS)}")
+    print("  Polista will report the reason on /health until then.")
 
 
 def plan_auth(prompter: Prompter, auth_path: Path) -> str:
@@ -502,14 +406,6 @@ def write_env_file(answers: dict) -> None:
             ("TOFINO_DEVICE_ID", answers["device_id"]),
             ("TOFINO_PROGRAM_NAME", answers["program_name"]),
         ]
-        if answers.get("sde_install"):
-            entries.append(("SDE_INSTALL", answers["sde_install"]))
-        if answers.get("sde_python_path"):
-            # run.sh prepends this to PYTHONPATH; without it `import bfrt_grpc`
-            # fails and the controller comes up unhealthy.
-            entries.append(("SDE_PYTHONPATH", answers["sde_python_path"]))
-        if answers.get("sde_interpreter"):
-            entries.append(("POLISTA_PYTHON", answers["sde_interpreter"]))
 
     header = [
         "# Polista environment — generated by scripts/setup.py.",
@@ -569,10 +465,8 @@ def report(answers: dict, used_venv: bool) -> None:
         print(f"  password   {answers['password']}")
     else:
         print("  password   (unchanged — existing auth file kept)")
-    if answers.get("sde_install"):
-        print(f"  SDE        {answers['sde_install']}")
-    if answers.get("sde_interpreter"):
-        print(f"  python     {answers['sde_interpreter']} (the SDE's, for bfrt_grpc)")
+    if answers["backend"] == "bfrt":
+        print(f"  switchd    {answers['grpc_target']} (BF Runtime gRPC)")
     print(f"\nSettings live in {ENV_FILE}. Start it with:\n")
     print("  bash scripts/run.sh")
     if not used_venv:
@@ -599,6 +493,8 @@ def main(argv=None) -> int:
         apply(answers, prompter)
         if not args.no_venv:
             build_venv(prompter)
+        if answers["backend"] == "bfrt":
+            check_bfrt_deps(venv_created=not args.no_venv)
         report(answers, used_venv=not args.no_venv)
 
         if not args.yes and prompter.yes_no("\nStart Polista now?", default=True):

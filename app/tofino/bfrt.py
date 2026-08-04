@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
 
 from app.tofino.backend import TofinoBackend
+
+VENDOR_DIR = Path(__file__).resolve().parent.parent.parent / "vendor"
+
+
+def _import_bfrt_grpc():
+    """Import bfrt_grpc, falling back to the copy vendored under vendor/.
+
+    The vendor dir goes on the *end* of sys.path, so an SDE-provided bfrt_grpc
+    already on PYTHONPATH still wins — running inside the SDE container keeps
+    working unchanged. Everywhere else, the vendored client makes the bfrt
+    backend usable without the SDE on the box at all.
+    """
+    if str(VENDOR_DIR) not in sys.path:
+        sys.path.append(str(VENDOR_DIR))
+    import bfrt_grpc.client as gc
+
+    return gc
 
 
 class BFRTBackend(TofinoBackend):
@@ -15,10 +34,22 @@ class BFRTBackend(TofinoBackend):
     ACTION_NAME = "Ingress.send"
     PORT_FIELD = "port"
 
-    def __init__(self, grpc_target: str, device_id: int, program_name: str) -> None:
+    # switchd holds client_id as a lease until the stream closes, so a client
+    # that died without tearing down leaves its id taken. Walking a few ids gets
+    # past that; each attempt costs subscribe_timeout * the client's own retries.
+    CLIENT_IDS = 10
+
+    def __init__(
+        self,
+        grpc_target: str,
+        device_id: int,
+        program_name: str,
+        subscribe_timeout: int = 1,
+    ) -> None:
         self.grpc_target = grpc_target
         self.device_id = device_id
         self.program_name = program_name
+        self.subscribe_timeout = subscribe_timeout
         self._gc: Any | None = None
         self._interface: Any | None = None
         self._table: Any | None = None
@@ -44,16 +75,19 @@ class BFRTBackend(TofinoBackend):
         if self._interface is not None:
             return
 
-        # bfrt_grpc is supplied by the SDE container, so importing it at module
-        # import time would make the normal fake-backend path unusable on hosts.
-        import bfrt_grpc.client as gc
+        # Imported lazily: the fake backend must stay usable on a host with no
+        # grpcio installed, and the vendored client needs grpcio at import time.
+        gc = _import_bfrt_grpc()
 
         interface = None
         last_error: Exception | None = None
-        for client_id in range(10):
+        for client_id in range(self.CLIENT_IDS):
             try:
                 interface = gc.ClientInterface(
-                    self.grpc_target, client_id=client_id, device_id=self.device_id
+                    self.grpc_target,
+                    client_id=client_id,
+                    device_id=self.device_id,
+                    timeout=self.subscribe_timeout,
                 )
                 break
             except Exception as exc:

@@ -41,10 +41,15 @@ def make_controller(tmp_path, backend):
     return Controller(backend, PortMap(UI_TO_DEV, PORT_COUNT), store, PORT_COUNT)
 
 
-async def test_missing_bfrt_grpc_names_the_sde_and_pythonpath(tmp_path):
-    """The failure every first-time bfrt user hits must name the actual fix."""
+@pytest.mark.parametrize("missing", ["bfrt_grpc", "grpc", "six", "google.rpc.status_pb2"])
+async def test_missing_bfrt_dependency_names_the_pip_install(tmp_path, missing):
+    """The failure every first-time bfrt user hits must name the actual fix.
+
+    bfrt_grpc itself is vendored, so in practice what is missing is one of its
+    gRPC dependencies -- but both cases have the same one-line fix.
+    """
     backend = UnreachableBackend(
-        last_error=ModuleNotFoundError("No module named 'bfrt_grpc'"),
+        last_error=ModuleNotFoundError(f"No module named '{missing}'", name=missing),
         grpc_target="127.0.0.1:50052",
     )
     controller = make_controller(tmp_path, backend)
@@ -52,8 +57,8 @@ async def test_missing_bfrt_grpc_names_the_sde_and_pythonpath(tmp_path):
 
     assert controller.health == "unhealthy"
     reason = controller.health_reason
-    assert "bfrt_grpc" in reason
-    assert "PYTHONPATH" in reason
+    assert missing in reason
+    assert "pip install grpcio" in reason
 
 
 async def test_unreachable_switchd_names_the_target(tmp_path):

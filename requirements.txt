@@ -3,8 +3,10 @@ uvicorn
 jinja2
 python-multipart      # HTML form posts
 itsdangerous          # required by Starlette SessionMiddleware
-# --- real backend only (Checkpoint 5+; not needed with TOFINO_BACKEND=fake) ---
-# grpcio
-# protobuf
-# p4runtime
-# grpcio-tools        # BUILD-ONLY: regenerate stubs from .proto if needed
+# --- TOFINO_BACKEND=bfrt only (not needed with TOFINO_BACKEND=fake) ---
+# The bfrt_grpc client itself is vendored in vendor/ (see vendor/README.md);
+# these are the only wheels it needs. No SDE required on this machine.
+grpcio
+grpcio-status         # supplies google.rpc.status_pb2 / code_pb2
+six
+# grpcio-tools        # BUILD-ONLY: scripts/regen_bfrt_stubs.sh

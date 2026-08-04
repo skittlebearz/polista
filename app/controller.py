@@ -286,14 +286,19 @@ class Controller:
         where = f" at {target}" if target else ""
         exc = self._last_status_error
 
-        if isinstance(exc, ModuleNotFoundError) and "bfrt_grpc" in str(exc):
-            # The SDE ships bfrt_grpc; it is not on PyPI. This is the failure
-            # every first-time bfrt user hits, so name the fix, not the symptom.
-            return (
-                "the SDE's bfrt_grpc module is not importable — run Polista with the "
-                "SDE's Python and set PYTHONPATH="
-                "$SDE_INSTALL/lib/python3.10/site-packages/tofino"
-            )
+        if isinstance(exc, ModuleNotFoundError):
+            # bfrt_grpc is vendored, so a missing module here means its gRPC
+            # dependencies were never installed — the failure every first-time
+            # bfrt user hits. Name the fix, not the symptom.
+            missing = exc.name or "a required module"
+            # exc.name is dotted for nested imports (google.rpc.status_pb2), so
+            # match on the top-level package.
+            root = missing.split(".")[0]
+            if root in ("bfrt_grpc", "grpc", "google", "six"):
+                return (
+                    f"the bfrt backend cannot import {missing} — install the bfrt "
+                    "dependencies: pip install grpcio grpcio-status six"
+                )
         if exc is not None:
             return f"device backend{where} is unreachable: {exc}"
         return (

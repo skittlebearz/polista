@@ -48,14 +48,15 @@ paths), waits for the status server on **port 7777** (the reliable ready signal 
 not the "server started" log line), and runs `scripts/bfrt_verify.py`: the full
 backend + Controller acceptance against the live device.
 
-To serve the web UI against the emulator, run uvicorn **inside** the container
-(the `bfrt_grpc` client and its pinned protobuf live there):
+To serve the web UI against the emulator:
 
 ```bash
-PYTHONPATH=$SDE_INSTALL/lib/python3.10/site-packages/tofino \
 TOFINO_BACKEND=bfrt TOFINO_GRPC_TARGET=localhost:50052 TOFINO_PROGRAM_NAME=polista \
     uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-(FastAPI deps must be installed in the container's Python 3.10; with
-`TOFINO_BACKEND=fake` none of this is needed.)
+No `PYTHONPATH`: the `bfrt_grpc` client is vendored (see
+[`../vendor/README.md`](../vendor/README.md)), so this runs either **inside** the
+container or on a host that can reach `:50052` — note that `docker compose run`
+only publishes ports with `--service-ports`. Inside the container, FastAPI and
+the gRPC deps must be installed for the Python you invoke.

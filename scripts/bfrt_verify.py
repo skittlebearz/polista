@@ -6,8 +6,11 @@ Controller stack on top of it (reconcile / canonical conflict / disconnect /
 refresh). Requires only stdlib + bfrt_grpc — no FastAPI.
 
 Usage (inside container, from /work):
-    PYTHONPATH=$SDE_INSTALL/lib/python3.10/site-packages/tofino:/work/polista \
-        python3 /work/polista/scripts/bfrt_verify.py
+    PYTHONPATH=/work/polista python3 /work/polista/scripts/bfrt_verify.py
+
+bfrt_grpc is vendored, so the SDE's site-packages no longer have to be on
+PYTHONPATH. Prepending them still works and takes precedence, which is what
+scripts/sde_verify.sh does — inside the container, use the SDE's own client.
 """
 
 import asyncio

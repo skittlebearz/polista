@@ -39,6 +39,10 @@ learning, no config files on the switch. Ports with no mapping drop everything.
 - **Real dataplane included.** A minimal TNA P4 program (one exact-match table)
   plus a BF Runtime (BFRT) gRPC backend, verified end to end against the Tofino
   model emulator — including actual packets following UI-created mappings.
+- **No SDE needed to run it.** The BF Runtime client is vendored
+  ([`vendor/`](vendor/README.md)), so the controller installs from PyPI and runs
+  anywhere — a management host, a container, the switch itself. P4 Studio is only
+  needed to compile the dataplane and run `bf_switchd`.
 
 ## How it works
 
@@ -121,17 +125,20 @@ tells you exactly which mappings would be removed before anything changes.
 ## Running against a real Tofino / the emulator
 
 The real backend speaks **BF Runtime gRPC** (`bfrt_grpc`, port 50052) to
-`bf_switchd`, using the SDE's own Python client. Because `bfrt_grpc` and its
-pinned protobuf ship inside the SDE, the recommended setup is to run Polista
-**where the SDE lives** (e.g. inside an [open-p4studio](https://github.com/p4lang/open-p4studio)
-container) rather than matching gRPC versions on a separate host.
+`bf_switchd`. That client is not on PyPI — it ships inside the Intel SDE — so
+Polista **vendors it** in [`vendor/`](vendor/README.md). No P4 Studio install is
+needed to run the controller: `pip install -r requirements.txt` pulls the three
+gRPC wheels it needs, and `app/tofino/bfrt.py` finds the vendored client itself.
 
-Choosing `bfrt` in `scripts/setup.py` handles this: it locates `$SDE_INSTALL`,
-checks that `bfrt_grpc` actually imports, and records `SDE_PYTHONPATH` (plus
-`POLISTA_PYTHON`, if only the SDE's interpreter can import it) in `polista.env`
-so `scripts/run.sh` starts the app with the right Python and path. If nothing on
-the box can import `bfrt_grpc`, it says so rather than leaving you to discover it
-as an unhealthy app later.
+You still need the SDE to **compile** `p4/polista.p4` and to run
+`bf_switchd`/`tofino-model` — only the control plane is freed. So Polista can run
+on a management host and point at a switch over the network, or run inside an
+[open-p4studio](https://github.com/p4lang/open-p4studio) container next to the
+model. Both work; nothing to configure either way.
+
+Running inside the SDE container against *its* `bfrt_grpc` is still supported:
+anything already on `PYTHONPATH` takes precedence over the vendored copy, and
+`SDE_PYTHONPATH`/`POLISTA_PYTHON` remain available in `polista.env` as overrides.
 
 1. Compile the dataplane and start the model + switchd — see
    [`p4/README.md`](p4/README.md) for the exact commands and the SDE traps
@@ -142,9 +149,10 @@ as an unhealthy app later.
 ```sh
 TOFINO_BACKEND=bfrt \
 TOFINO_GRPC_TARGET=localhost:50052 TOFINO_DEVICE_ID=0 TOFINO_PROGRAM_NAME=polista \
-PYTHONPATH="$SDE_INSTALL/lib/python3.10/site-packages/tofino:$PYTHONPATH" \
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8888
+.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8888
 ```
+
+No `PYTHONPATH` — the vendored `bfrt_grpc` is found automatically.
 
 3. Optional, against the emulator: inject test traffic with
    `scripts/pf_scapy.py`, which speaks UI port numbers instead of veth names:
@@ -216,16 +224,17 @@ Everything is environment variables — no config file for the app itself.
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
 | `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `polista` |
 | `HTTP_BIND_ADDR` | `HOST:PORT` used by `scripts/run.sh` | `127.0.0.1:8000` |
-| `SDE_PYTHONPATH` | SDE site-packages `run.sh` prepends to `PYTHONPATH` (bfrt only) | unset |
-| `POLISTA_PYTHON` | interpreter `run.sh` uses instead of the venv (bfrt only) | unset |
+| `SDE_PYTHONPATH` | optional override: SDE site-packages `run.sh` prepends to `PYTHONPATH`, to use the SDE's `bfrt_grpc` instead of the vendored one | unset |
+| `POLISTA_PYTHON` | optional override: interpreter `run.sh` uses instead of the venv | unset |
 
 ## Development & tests
 
 ```sh
 .venv/bin/pip install pytest pytest-asyncio httpx
-.venv/bin/python -m pytest                 # 100 tests: 1:1 semantics, API, UI routes,
+.venv/bin/python -m pytest                 # 103 tests: 1:1 semantics, API, UI routes,
                                            # client integration, failure states,
-                                           # setup wizard, health diagnostics
+                                           # setup wizard, health diagnostics, and
+                                           # the vendored BFRT client over real gRPC
 .venv/bin/pip install playwright           # optional, uses your system chromium
 .venv/bin/python scripts/ui_verify.py      # drives the real UI headless: clicks,
                                            # conflict dialog, SVG lines, redraws
@@ -249,7 +258,8 @@ app/            FastAPI app: controller, stores, auth, routes, templates, static
 client/         stdlib-only Python REST client
 p4/             TNA dataplane, switchd conf, build/run notes
 scripts/        setup wizard + launcher, verification harnesses, SDE playground,
-                scapy helper
+                scapy helper, bfrt stub regeneration
 tests/          acceptance tests (pytest)
 data/           example port map / mappings files
+vendor/         vendored bfrt_grpc BF Runtime client (Apache-2.0) — see its README
 ```
