@@ -37,11 +37,16 @@ def _config(request: Request):
 @router.get("/health")
 async def health(request: Request):
     controller = _controller(request)
-    return {
+    body = {
         "status": controller.health,
         "tofino_connected": controller.health == "healthy",
         "sync_state": controller.sync,
     }
+    # Only present when something is wrong, so the healthy response shape is
+    # exactly what it has always been.
+    if controller.health_reason:
+        body["reason"] = controller.health_reason
+    return body
 
 
 @router.get("/ports")

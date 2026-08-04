@@ -20,7 +20,19 @@ BIND="${HTTP_BIND_ADDR:-127.0.0.1:8000}"
 HOST="${BIND%:*}"
 PORT="${BIND##*:}"
 
+# The SDE's bfrt_grpc is not on PyPI and is not installable into the venv, so
+# TOFINO_BACKEND=bfrt needs the SDE's site-packages on PYTHONPATH.
+if [[ -n "${SDE_PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="${SDE_PYTHONPATH}${PYTHONPATH:+:$PYTHONPATH}"
+fi
+
 cd "$ROOT"
+
+# POLISTA_PYTHON is set by setup.py when only the SDE's interpreter can import
+# bfrt_grpc; the venv would fail on the pinned protobuf.
+if [[ -n "${POLISTA_PYTHON:-}" ]]; then
+    exec "$POLISTA_PYTHON" -m uvicorn app.main:app --host "$HOST" --port "$PORT" "$@"
+fi
 if [[ -x "$ROOT/.venv/bin/uvicorn" ]]; then
     exec "$ROOT/.venv/bin/uvicorn" app.main:app --host "$HOST" --port "$PORT" "$@"
 fi

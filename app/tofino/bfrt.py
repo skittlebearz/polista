@@ -23,6 +23,10 @@ class BFRTBackend(TofinoBackend):
         self._interface: Any | None = None
         self._table: Any | None = None
         self._target: Any | None = None
+        # status() reports reachability as a bool, which cannot say *why* a
+        # connection failed. Keep the exception so the controller can explain
+        # itself instead of just going unhealthy.
+        self.last_error: BaseException | None = None
 
     def _invalidate(self) -> None:
         interface = self._interface
@@ -85,8 +89,10 @@ class BFRTBackend(TofinoBackend):
     def status(self) -> bool:
         try:
             self._connect()
+            self.last_error = None
             return True
-        except Exception:
+        except Exception as exc:
+            self.last_error = exc
             self._invalidate()
             return False
 

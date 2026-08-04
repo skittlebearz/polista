@@ -49,9 +49,9 @@ def create_app() -> FastAPI:
 
         try:
             port_map = load_port_map(cfg.port_map_file, cfg.port_count)
-        except PortMapError:
+        except PortMapError as exc:
             controller = Controller(backend, _identity_port_map(cfg.port_count), store, cfg.port_count)
-            controller.health = "unhealthy"
+            controller.mark_unhealthy(f"port map {cfg.port_map_file} is unusable: {exc}", exc)
             app.state.controller = controller
         else:
             controller = Controller(backend, port_map, store, cfg.port_count)

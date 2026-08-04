@@ -34,6 +34,18 @@ def prompter():
     return setup.Prompter(assume_yes=True)
 
 
+@pytest.fixture
+def fake_sde(tmp_path_factory):
+    """An SDE-shaped tree whose bfrt_grpc actually imports."""
+    root = tmp_path_factory.mktemp("sde")
+    install = root / "install"
+    package = install / "lib" / "python3.10" / "site-packages" / "tofino" / "bfrt_grpc"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "client.py").write_text("class ClientInterface: pass\n")
+    return install
+
+
 # --------------------------------------------------------------------- validators
 
 
@@ -160,8 +172,11 @@ def test_env_file_is_not_world_readable(tmp_path, monkeypatch, prompter):
     assert mode == 0o600
 
 
-def test_bfrt_run_records_the_switchd_connection(tmp_path, monkeypatch, prompter):
-    answers = ["bfrt", "8", "0.0.0.0:8888", "zero", "operator", "localhost:50052", "0", "polista"]
+def test_bfrt_run_records_the_switchd_connection(tmp_path, monkeypatch, prompter, fake_sde):
+    answers = [
+        "bfrt", "8", "0.0.0.0:8888", "zero", "operator",
+        "localhost:50052", "0", "polista", str(fake_sde),
+    ]
     run_wizard(tmp_path, monkeypatch, answers, prompter)
 
     port_map = json.loads((tmp_path / "data" / "port_map.json").read_text())
@@ -172,6 +187,73 @@ def test_bfrt_run_records_the_switchd_connection(tmp_path, monkeypatch, prompter
     assert env["TOFINO_GRPC_TARGET"] == "localhost:50052"
     assert env["TOFINO_PROGRAM_NAME"] == "polista"
     assert env["HTTP_BIND_ADDR"] == "0.0.0.0:8888"
+
+
+# ---------------------------------------------------------------------------- SDE
+
+
+def test_sde_python_paths_finds_the_tofino_site_packages(fake_sde):
+    paths = setup.sde_python_paths(fake_sde)
+    assert paths
+    assert paths[0].endswith("python3.10/site-packages/tofino")
+
+
+def test_sde_install_dir_rejects_a_missing_directory(tmp_path):
+    with pytest.raises(ValueError, match="not a directory"):
+        setup.sde_install_dir(str(tmp_path / "nope"))
+
+
+def test_sde_install_dir_rejects_the_sde_root_and_says_so(fake_sde):
+    """Pointing at <sde>/ instead of <sde>/install is the common mistake."""
+    with pytest.raises(ValueError, match="no python site-packages"):
+        setup.sde_install_dir(str(fake_sde.parent))
+
+
+def test_sde_install_dir_accepts_a_real_install(fake_sde):
+    assert setup.sde_install_dir(str(fake_sde)) == str(fake_sde)
+
+
+def test_guess_sde_install_derives_install_from_sde_root(monkeypatch, fake_sde):
+    monkeypatch.delenv("SDE_INSTALL", raising=False)
+    monkeypatch.setenv("SDE", str(fake_sde.parent))
+    assert setup.guess_sde_install() == str(fake_sde)
+
+
+def test_guess_sde_install_is_empty_without_a_usable_sde(monkeypatch, tmp_path):
+    monkeypatch.setenv("SDE_INSTALL", str(tmp_path))
+    monkeypatch.delenv("SDE", raising=False)
+    assert setup.guess_sde_install() == ""
+
+
+def test_probe_bfrt_succeeds_against_an_importable_tree(fake_sde):
+    ok, detail = setup.probe_bfrt(setup.sde_python_paths(fake_sde))
+    assert ok, detail
+
+
+def test_probe_bfrt_reports_the_missing_module(tmp_path):
+    ok, detail = setup.probe_bfrt([str(tmp_path)])
+    assert not ok
+    assert "bfrt_grpc" in detail
+
+
+def test_bfrt_env_carries_the_pythonpath_run_sh_needs(tmp_path, monkeypatch, prompter, fake_sde):
+    answers = [
+        "bfrt", "8", "127.0.0.1:8000", "zero", "admin",
+        "127.0.0.1:50052", "0", "polista", str(fake_sde),
+    ]
+    run_wizard(tmp_path, monkeypatch, answers, prompter)
+
+    env = parse_env(tmp_path / "polista.env")
+    assert env["SDE_INSTALL"] == str(fake_sde)
+    assert "site-packages/tofino" in env["SDE_PYTHONPATH"]
+
+
+def test_fake_backend_env_has_no_sde_variables(tmp_path, monkeypatch, prompter):
+    run_wizard(tmp_path, monkeypatch, ["fake", "8", "127.0.0.1:8000", "identity", "admin"], prompter)
+    env = parse_env(tmp_path / "polista.env")
+    assert "SDE_INSTALL" not in env
+    assert "SDE_PYTHONPATH" not in env
+    assert "POLISTA_PYTHON" not in env
 
 
 def test_rerun_preserves_existing_cross_connects(tmp_path, monkeypatch, prompter):

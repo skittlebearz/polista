@@ -54,6 +54,7 @@ def _panel_context(request: Request, *, oob: bool = False) -> dict:
         "mappings": controller.mappings,
         "labels": controller.labels,
         "health": controller.health,
+        "health_reason": controller.health_reason,
         "sync": controller.sync,
         "oob": oob,
     }

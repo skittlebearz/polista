@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+
+log = logging.getLogger("polista.controller")
 
 
 class BackendError(Exception):
@@ -18,6 +21,23 @@ class Controller:
         self.labels: dict[int, str] = {}
         self.health = "healthy"
         self.sync = "in_sync"
+        # Why the controller is unhealthy, in operator terms. A bare
+        # "unhealthy" makes a missing SDE module, an unreachable switchd, and a
+        # bad port map look identical; this is what turns that into a diagnosis.
+        self.health_reason: str | None = None
+        self._last_status_error: BaseException | None = None
+
+    def mark_unhealthy(self, reason: str, exc: BaseException | None = None) -> None:
+        self.health = "unhealthy"
+        self.health_reason = reason
+        if exc is not None:
+            log.error("controller unhealthy: %s: %s", reason, exc, exc_info=exc)
+        else:
+            log.error("controller unhealthy: %s", reason)
+
+    def mark_healthy(self) -> None:
+        self.health = "healthy"
+        self.health_reason = None
 
     async def connect(self, ingress, egress, force=False) -> dict:
         async with self._lock:
@@ -121,8 +141,10 @@ class Controller:
         async with self._lock:
             try:
                 mappings, labels = await self._call(self.store.load_state)
-            except Exception:
-                self.health = "unhealthy"
+            except Exception as exc:
+                self.mark_unhealthy(
+                    f"could not read the desired-state file {self.store.path}", exc
+                )
                 return
 
             try:
@@ -131,18 +153,20 @@ class Controller:
                     self._validate_port(egress)
                     self._to_dev(ingress)
                     self._to_dev(egress)
-            except ValueError:
-                self.health = "unhealthy"
+            except ValueError as exc:
+                self.mark_unhealthy(
+                    f"the saved mappings do not fit the current port map: {exc}", exc
+                )
                 return
 
             if not await self._backend_reachable():
-                self.health = "unhealthy"
+                self.mark_unhealthy(self._unreachable_reason(), self._last_status_error)
                 return
 
             try:
                 await self._call(self.backend.clear_all)
-            except Exception:
-                self.health = "unhealthy"
+            except Exception as exc:
+                self.mark_unhealthy(f"could not clear the device table: {exc}", exc)
                 return
 
             self.mappings = dict(mappings)
@@ -157,17 +181,22 @@ class Controller:
                         self._to_dev(ingress),
                         self._to_dev(egress),
                     )
-                except ValueError:
-                    self.health = "unhealthy"
+                except ValueError as exc:
+                    self.mark_unhealthy(f"cannot replay mapping onto the device: {exc}", exc)
                     return
-                except Exception:
+                except Exception as exc:
                     if await self._backend_reachable():
+                        log.warning(
+                            "replaying %s->%s failed; sync is partial: %s", ingress, egress, exc
+                        )
                         self.sync = "partial_sync"
                     else:
-                        self.health = "unhealthy"
+                        self.mark_unhealthy(
+                            f"device became unreachable while replaying state: {exc}", exc
+                        )
                     return
 
-            self.health = "healthy"
+            self.mark_healthy()
             self.sync = "in_sync"
 
     async def set_label(self, port, label) -> dict:
@@ -189,7 +218,10 @@ class Controller:
 
     def _require_healthy(self) -> None:
         if self.health == "unhealthy":
-            raise ValueError("controller is unhealthy; device mutations are unavailable")
+            detail = f": {self.health_reason}" if self.health_reason else ""
+            raise ValueError(
+                f"controller is unhealthy; device mutations are unavailable{detail}"
+            )
 
     def _to_dev(self, ui_port: int) -> int:
         try:
@@ -234,15 +266,40 @@ class Controller:
         return True
 
     async def _backend_reachable(self) -> bool:
+        self._last_status_error = None
         for attempt in range(3):
             try:
                 if await self._call(self.backend.status):
                     return True
-            except Exception:
-                pass
+                # A backend that reports False rather than raising may still
+                # have kept the underlying cause.
+                self._last_status_error = getattr(self.backend, "last_error", None)
+            except Exception as exc:
+                self._last_status_error = exc
             if attempt < 2:
                 await asyncio.sleep(0.01)
         return False
+
+    def _unreachable_reason(self) -> str:
+        """Describe an unreachable backend, naming the usual bfrt causes."""
+        target = getattr(self.backend, "grpc_target", None)
+        where = f" at {target}" if target else ""
+        exc = self._last_status_error
+
+        if isinstance(exc, ModuleNotFoundError) and "bfrt_grpc" in str(exc):
+            # The SDE ships bfrt_grpc; it is not on PyPI. This is the failure
+            # every first-time bfrt user hits, so name the fix, not the symptom.
+            return (
+                "the SDE's bfrt_grpc module is not importable — run Polista with the "
+                "SDE's Python and set PYTHONPATH="
+                "$SDE_INSTALL/lib/python3.10/site-packages/tofino"
+            )
+        if exc is not None:
+            return f"device backend{where} is unreachable: {exc}"
+        return (
+            f"device backend{where} is unreachable — check that bf_switchd is running "
+            "and serving BF Runtime gRPC"
+        )
 
     async def _call(self, func, *args):
         return await asyncio.to_thread(func, *args)

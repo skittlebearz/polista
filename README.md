@@ -126,6 +126,13 @@ pinned protobuf ship inside the SDE, the recommended setup is to run Polista
 **where the SDE lives** (e.g. inside an [open-p4studio](https://github.com/p4lang/open-p4studio)
 container) rather than matching gRPC versions on a separate host.
 
+Choosing `bfrt` in `scripts/setup.py` handles this: it locates `$SDE_INSTALL`,
+checks that `bfrt_grpc` actually imports, and records `SDE_PYTHONPATH` (plus
+`POLISTA_PYTHON`, if only the SDE's interpreter can import it) in `polista.env`
+so `scripts/run.sh` starts the app with the right Python and path. If nothing on
+the box can import `bfrt_grpc`, it says so rather than leaving you to discover it
+as an unhealthy app later.
+
 1. Compile the dataplane and start the model + switchd — see
    [`p4/README.md`](p4/README.md) for the exact commands and the SDE traps
    (artifact naming, readiness signals) they work around. `scripts/sde_run_app.sh`
@@ -153,6 +160,12 @@ port and be one-to-one; anything else marks the app `unhealthy` at startup, and
 an unhealthy app refuses device mutations rather than programming a switch with
 a translation it knows is wrong.
 
+**When the app comes up unhealthy,** it says why: the reason is logged at
+startup, returned as `reason` from `GET /health`, shown in the UI status-dot
+tooltip, and repeated in the `400` that mutations return. The usual causes are a
+missing `bfrt_grpc` (wrong Python or `PYTHONPATH` — see above), an unreachable
+`bf_switchd`, or a port map that is not a bijection.
+
 ## REST API
 
 Same daemon, same auth (session cookie **or** HTTP Basic). All routes are JSON
@@ -160,7 +173,7 @@ except the HTMX `/ui/*` routes.
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| `GET` | `/health` | | `{"status","tofino_connected","sync_state"}` |
+| `GET` | `/health` | | `{"status","tofino_connected","sync_state"}` + `reason` when unhealthy |
 | `GET` | `/ports` | | port count + labels |
 | `GET` | `/mappings` | | current cross-connects |
 | `POST` | `/mappings` | `{"ingress":1,"egress":5,"force":false}` | `409` + `would_remove` on conflict; `force:true` applies it |
@@ -203,14 +216,16 @@ Everything is environment variables — no config file for the app itself.
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
 | `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `polista` |
 | `HTTP_BIND_ADDR` | `HOST:PORT` used by `scripts/run.sh` | `127.0.0.1:8000` |
+| `SDE_PYTHONPATH` | SDE site-packages `run.sh` prepends to `PYTHONPATH` (bfrt only) | unset |
+| `POLISTA_PYTHON` | interpreter `run.sh` uses instead of the venv (bfrt only) | unset |
 
 ## Development & tests
 
 ```sh
 .venv/bin/pip install pytest pytest-asyncio httpx
-.venv/bin/python -m pytest                 # 80 tests: 1:1 semantics, API, UI routes,
+.venv/bin/python -m pytest                 # 100 tests: 1:1 semantics, API, UI routes,
                                            # client integration, failure states,
-                                           # setup wizard
+                                           # setup wizard, health diagnostics
 .venv/bin/pip install playwright           # optional, uses your system chromium
 .venv/bin/python scripts/ui_verify.py      # drives the real UI headless: clicks,
                                            # conflict dialog, SVG lines, redraws
