@@ -1,4 +1,4 @@
 {% set overall = "unhealthy" if health == "unhealthy" else ("degraded" if sync != "in_sync" else "ok") %}
-{% set detail = health ~ " · " ~ sync ~ (" — " ~ health_reason if health_reason else "") %}
+{% set detail = health ~ " · " ~ sync ~ (" — " ~ health_reason if health_reason else (" — " ~ drift_summary if drift_summary else "")) %}
 <span class="status-dot status-{{ overall }}" role="status" tabindex="0"
       data-tip="{{ detail }}" aria-label="{{ detail }}"></span>

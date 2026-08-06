@@ -25,5 +25,10 @@
     {% endfor %}
   </div>
 </div>
-<div id="dialog" hx-swap-oob="true"></div>
-{% if oob %}<div id="status" class="status" aria-live="polite" hx-swap-oob="true">{% include "_status.html" %}</div>{% endif %}
+{% if oob %}
+{# Empties the dialog after a completed action; the element itself lives in
+   base.html so a full-panel swap cannot delete it. Only on OOB responses —
+   emitting it during a full page render would duplicate the id. #}
+<div id="dialog" hx-swap-oob="innerHTML"></div>
+{% with menu_oob=true %}{% include "_menu.html" %}{% endwith %}
+{% endif %}

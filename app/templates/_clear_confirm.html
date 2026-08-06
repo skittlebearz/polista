@@ -1,0 +1,18 @@
+<div class="clear-confirm">
+  <p><strong>Clear all cross-connects?</strong></p>
+  <p>
+    {% if count %}
+      This removes {{ count }} mapping{{ "" if count == 1 else "s" }} from the switch
+      and from Polista's saved state. Traffic on every mapped port stops immediately.
+    {% else %}
+      There are no mappings to remove. This will still clear the switch table.
+    {% endif %}
+    This cannot be undone.
+  </p>
+  <div class="confirm-actions">
+    <button type="button" class="danger" hx-post="/ui/clear" hx-target="#panel" hx-swap="outerHTML">
+      Clear everything
+    </button>
+    <button type="button" onclick="document.getElementById('dialog').innerHTML=''; window.polistaRedraw()">Cancel</button>
+  </div>
+</div>

@@ -69,6 +69,50 @@
     }
   }
   window.polistaRedraw = redraw;
+
+  // --- header menu ----------------------------------------------------------
+  // The background drift poll replaces #menu wholesale, so open/closed lives
+  // here rather than in the swapped-in markup; restoreMenu reapplies it.
+  var menuOpen = false;
+  function menuParts() {
+    var menu = document.getElementById("menu");
+    return menu ? { menu: menu, trigger: menu.querySelector(".menu-trigger"), panel: menu.querySelector(".menu-panel") } : null;
+  }
+  function setMenu(open) {
+    var parts = menuParts();
+    if (!parts || !parts.panel) return;
+    menuOpen = open;
+    parts.panel.hidden = !open;
+    if (parts.trigger) parts.trigger.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function restoreMenu() { setMenu(menuOpen); }
+  // The drift poll replaces #menu wholesale. Doing that under an open menu
+  // shifts the items beneath the cursor mid-click — and one of them clears every
+  // cross-connect. Skip the swap while it is open; the next poll after it closes
+  // catches up, and the trigger LED is what matters when closed anyway.
+  document.addEventListener("htmx:beforeSwap", function (event) {
+    if (menuOpen && event.target && event.target.id === "menu") {
+      event.preventDefault();
+    }
+  });
+  document.addEventListener("click", function (event) {
+    var el = event.target.closest ? event.target : event.target.parentElement;
+    if (!el) return;
+    if (el.closest(".menu-trigger")) {
+      event.preventDefault();
+      setMenu(!menuOpen);
+      return;
+    }
+    // Any menu action closes the menu; the click still reaches htmx.
+    if (el.closest(".menu-item")) { setMenu(false); return; }
+    if (!el.closest("#menu")) setMenu(false);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !menuOpen) return;
+    var parts = menuParts();
+    setMenu(false);
+    if (parts && parts.trigger) parts.trigger.focus();
+  });
   document.addEventListener("click", function (event) {
     var target = event.target.closest ? event.target : event.target.parentElement;
     var edit = target && target.closest(".label-edit");
@@ -121,6 +165,6 @@
     event.target.blur();
   });
   document.addEventListener("DOMContentLoaded", redraw);
-  document.addEventListener("htmx:afterSwap", redraw);
+  document.addEventListener("htmx:afterSwap", function () { redraw(); restoreMenu(); });
   window.addEventListener("resize", redraw);
 })();

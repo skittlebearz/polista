@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,6 +19,8 @@ from app.routes import ui as ui_routes
 from app.store import Store
 from app.tofino.fake import FakeBackend
 from app.tofino.bfrt import BFRTBackend
+
+log = logging.getLogger("polista.main")
 
 
 def _build_backend(cfg):
@@ -38,6 +41,20 @@ def _identity_port_map(port_count: int) -> PortMap:
     return PortMap({port: port for port in range(1, port_count + 1)}, port_count)
 
 
+async def _drift_loop(controller, interval: float) -> None:
+    """Poll the device so the status LED reflects the table, not our memory."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await controller.check_drift()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # A drift check that throws must never take the app down with it;
+            # check_drift already marks health for the failures it can name.
+            log.exception("drift check failed")
+
+
 def create_app() -> FastAPI:
     cfg = load_config()
     backend = _build_backend(cfg)
@@ -51,16 +68,30 @@ def create_app() -> FastAPI:
             port_map = load_port_map(cfg.port_map_file, cfg.port_count)
         except PortMapError as exc:
             controller = Controller(backend, _identity_port_map(cfg.port_count), store, cfg.port_count)
-            controller.mark_unhealthy(f"port map {cfg.port_map_file} is unusable: {exc}", exc)
+            controller.mark_unhealthy(
+                f"port map {cfg.port_map_file} is unusable: {exc}", exc, recoverable=False
+            )
             app.state.controller = controller
         else:
             controller = Controller(backend, port_map, store, cfg.port_count)
             app.state.controller = controller
             await controller.reconcile()
 
+        drift_task = None
+        if cfg.drift_check_interval > 0:
+            drift_task = asyncio.create_task(
+                _drift_loop(controller, cfg.drift_check_interval)
+            )
+
         try:
             yield
         finally:
+            if drift_task is not None:
+                drift_task.cancel()
+                try:
+                    await drift_task
+                except asyncio.CancelledError:
+                    pass
             await asyncio.to_thread(backend.close)
 
     app = FastAPI(lifespan=lifespan)

@@ -46,6 +46,8 @@ async def health(request: Request):
     # exactly what it has always been.
     if controller.health_reason:
         body["reason"] = controller.health_reason
+    if controller.drift:
+        body["drift"] = controller.drift
     return body
 
 
@@ -113,6 +115,38 @@ async def refresh(request: Request):
         return JSONResponse(status_code=503, content={"detail": str(exc)})
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/push")
+async def push(request: Request):
+    controller = _controller(request)
+    try:
+        return await controller.push()
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/clear")
+async def clear(request: Request):
+    controller = _controller(request)
+    try:
+        return await controller.clear()
+    except BackendError as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/drift")
+async def drift(request: Request):
+    controller = _controller(request)
+    try:
+        delta = await controller.check_drift()
+    except Exception as exc:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
+    return {"drift": delta, "sync_state": controller.sync}
 
 
 @router.get("/labels")

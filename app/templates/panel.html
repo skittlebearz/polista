@@ -4,4 +4,4 @@
     {% include "_ports.html" %}
   {% endwith %}
 </div>
-{% if oob %}<div id="status" class="status" aria-live="polite" hx-swap-oob="true">{% include "_status.html" %}</div>{% endif %}
+{% if oob %}{% with menu_oob=true %}{% include "_menu.html" %}{% endwith %}{% endif %}

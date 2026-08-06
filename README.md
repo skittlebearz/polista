@@ -27,9 +27,13 @@ learning, no config files on the switch. Ports with no mapping drop everything.
   replaced — in the UI and as HTTP 409 in the API. Mappings are unidirectional;
   self-connect (`1 -> 1`) is allowed.
 - **The switch is the source of truth.** On startup Polista clears its table and
-  replays desired state onto the device; a Refresh pulls live device state back.
-  Honest health/sync states (`in_sync`, `out_of_sync`, `partial_sync`,
-  `unhealthy`) are surfaced in the UI and `GET /health`.
+  replays desired state onto the device. Honest health/sync states (`in_sync`,
+  `out_of_sync`, `partial_sync`, `drifted`, `unhealthy`) are surfaced in the UI
+  and `GET /health`.
+- **Drift is detected, not assumed away.** A background check compares the live
+  Tofino table against Polista's mappings, so an out-of-band `bfshell` edit or a
+  `bf_switchd` restart turns the status LED amber and names the delta instead of
+  leaving a confidently wrong UI. Recovery is one click, in either direction.
 - **Zero build step, offline-friendly.** One Python process (FastAPI + Jinja2 +
   HTMX + ~80 lines of vanilla JS). No Node, no bundler, no compiler. Editing the
   app means editing `.py`/`.html`/`.js` and restarting uvicorn. Frontend deps are
@@ -122,6 +126,42 @@ connect them. Click a connected pair to disconnect it. Edit the text field on an
 port to label it. If a new connection conflicts with existing ones, a dialog
 tells you exactly which mappings would be removed before anything changes.
 
+**The menu** (top right) holds the status LED and everything that touches the
+whole table at once:
+
+| Item | What it does |
+|---|---|
+| status LED | green `in_sync`, amber degraded/drifted, red unhealthy — hover for the reason. Also shown on the closed menu button. |
+| ↑ Push to switch | Polista's mappings win: clears the device table and replays them onto it. |
+| ↓ Pull from switch | The device wins: the live table becomes Polista's mappings. |
+| ⚠ Clear all cross-connects | Removes every mapping from both sides. Asks first, naming how many. Labels are kept. |
+
+## Recovering from drift
+
+Polista and the switch can disagree — someone edits the table with `bfshell`,
+`bf_switchd` restarts and comes up empty, or a replay only partly succeeded.
+Every `DRIFT_CHECK_INTERVAL` seconds (default 15, `0` disables) a background
+check reads the live table and compares it against the mappings Polista thinks
+are installed. It is **report-only**: it never writes to the dataplane on its
+own, because "which side is right" is an operator's call, not a poller's.
+
+When they disagree, `sync_state` becomes `drifted`, the LED goes amber, and the
+menu lists the delta — entries missing from the switch, entries pointing
+somewhere else, entries on the switch that Polista never created, and entries
+outside the port map entirely. Then pick a direction:
+
+- **Push to switch** when Polista's view is the intended one — the usual case
+  after a switchd restart. This also recovers a controller that came up
+  `unhealthy` because the switch was unreachable at boot: a successful push is
+  proof the device is back. It stays refused when the reason was a bad port map
+  or an unreadable state file, since those translations are known-wrong.
+- **Pull from switch** when the device is the intended one, e.g. mappings were
+  installed out of band on purpose. Note this overwrites `mappings.json`.
+
+The same operations are on the API: `POST /push`, `POST /clear`, and
+`GET /drift` (which runs a check and returns the delta). `GET /health` includes
+a `drift` object whenever one is outstanding.
+
 ## Running against a real Tofino / the emulator
 
 The real backend speaks **BF Runtime gRPC** (`bfrt_grpc`, port 50052) to
@@ -181,12 +221,15 @@ except the HTMX `/ui/*` routes.
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| `GET` | `/health` | | `{"status","tofino_connected","sync_state"}` + `reason` when unhealthy |
+| `GET` | `/health` | | `{"status","tofino_connected","sync_state"}` + `reason` when unhealthy, + `drift` when drifted |
 | `GET` | `/ports` | | port count + labels |
 | `GET` | `/mappings` | | current cross-connects |
 | `POST` | `/mappings` | `{"ingress":1,"egress":5,"force":false}` | `409` + `would_remove` on conflict; `force:true` applies it |
 | `DELETE` | `/mappings` | `{"ingress":1,"egress":5}` | must name the exact pair |
-| `POST` | `/refresh` | | re-read live state from the device |
+| `POST` | `/refresh` | | pull: re-read live state from the device |
+| `POST` | `/push` | | push: replace the device table with Polista's mappings |
+| `POST` | `/clear` | | remove every cross-connect, device and saved state |
+| `GET` | `/drift` | | run a drift check; `{"drift","sync_state"}` (`drift` is `null` when in sync) |
 | `GET` | `/labels` | | label map |
 | `PUT` | `/labels/{port}` | `{"label":"Camera A"}` | |
 | `POST` | `/login` / `/logout`, `GET` `/session` | form / — | session management |
@@ -223,6 +266,7 @@ Everything is environment variables — no config file for the app itself.
 | `BOOTSTRAP_USERNAME` / `BOOTSTRAP_PASSWORD` | first-run credentials | `admin` / `admin` |
 | `TOFINO_BACKEND` | `fake` or `bfrt` (`p4runtime` reserved) | `fake` |
 | `TOFINO_GRPC_TARGET` / `TOFINO_DEVICE_ID` / `TOFINO_PROGRAM_NAME` | switchd connection (bfrt only) | `127.0.0.1:50051` / `0` / `polista` |
+| `DRIFT_CHECK_INTERVAL` | seconds between background drift checks; `0` disables | `15` |
 | `HTTP_BIND_ADDR` | `HOST:PORT` used by `scripts/run.sh` | `127.0.0.1:8000` |
 | `SDE_PYTHONPATH` | optional override: SDE site-packages `run.sh` prepends to `PYTHONPATH`, to use the SDE's `bfrt_grpc` instead of the vendored one | unset |
 | `POLISTA_PYTHON` | optional override: interpreter `run.sh` uses instead of the venv | unset |

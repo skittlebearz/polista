@@ -1,0 +1,62 @@
+{% set overall = "unhealthy" if health == "unhealthy" else ("degraded" if sync != "in_sync" else "ok") %}
+<div id="menu" class="menu"{% if menu_oob %} hx-swap-oob="true"{% endif %}
+     hx-get="/ui/status" hx-trigger="every 15s" hx-target="#menu" hx-swap="outerHTML">
+  <button type="button" class="menu-trigger" aria-haspopup="true" aria-expanded="false"
+          aria-controls="menu-panel" aria-label="Menu — {{ health }}, {{ sync }}">
+    <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+    <span class="menu-led status-{{ overall }}" aria-hidden="true"></span>
+  </button>
+
+  <div id="menu-panel" class="menu-panel" hidden>
+    <div class="menu-status">
+      <div id="status" class="status" aria-live="polite">{% include "_status.html" %}</div>
+      <div class="menu-status-text">
+        <strong>{{ health }} · {{ sync }}</strong>
+        {% if health_reason %}<span class="menu-note">{{ health_reason }}</span>{% endif %}
+        {% if drift_summary %}<span class="menu-note">{{ drift_summary }}</span>{% endif %}
+      </div>
+    </div>
+
+    {% if drift %}
+      <div class="menu-drift">
+        {% for d in drift.missing_on_device %}
+          <div><span class="drift-tag drift-missing">missing</span> {{ d.ingress }} → {{ d.egress }} is not on the switch</div>
+        {% endfor %}
+        {% for d in drift.mismatched %}
+          <div><span class="drift-tag drift-mismatch">differs</span> {{ d.ingress }} → {{ d.actual }} on the switch, {{ d.expected }} here</div>
+        {% endfor %}
+        {% for d in drift.extra_on_device %}
+          <div><span class="drift-tag drift-extra">extra</span> {{ d.ingress }} → {{ d.egress }} is on the switch only</div>
+        {% endfor %}
+        {% for d in drift.unmapped_on_device %}
+          <div><span class="drift-tag drift-extra">foreign</span> device port {{ d.ingress_dev }} → {{ d.egress_dev }}, outside the port map</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="menu-group">
+      <button type="button" class="menu-item" hx-post="/ui/push" hx-target="#panel" hx-swap="outerHTML">
+        <span class="menu-item-title">↑ Push to switch</span>
+        <span class="menu-item-note">Replace the switch table with Polista's mappings</span>
+      </button>
+      <button type="button" class="menu-item" hx-post="/ui/refresh" hx-target="#panel" hx-swap="outerHTML">
+        <span class="menu-item-title">↓ Pull from switch</span>
+        <span class="menu-item-note">Replace Polista's mappings with the switch table</span>
+      </button>
+    </div>
+
+    <div class="menu-group">
+      <button type="button" class="menu-item menu-item-danger"
+              hx-post="/ui/clear/confirm" hx-target="#dialog" hx-swap="innerHTML">
+        <span class="menu-item-title">⚠ Clear all cross-connects</span>
+        <span class="menu-item-note">Remove every mapping, here and on the switch</span>
+      </button>
+    </div>
+
+    <div class="menu-group">
+      <form method="post" action="/ui/logout">
+        <button type="submit" class="menu-item"><span class="menu-item-title">Logout</span></button>
+      </form>
+    </div>
+  </div>
+</div>

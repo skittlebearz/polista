@@ -16,15 +16,15 @@
         <span class="brand-name">Polista</span>
       </a>
       <div class="header-actions">
-        <div id="status" class="status" aria-live="polite">{% include "_status.html" %}</div>
-        <button type="button" hx-post="/ui/refresh" hx-target="#panel" hx-swap="outerHTML">Refresh</button>
-        <form method="post" action="/ui/logout">
-          <button type="submit">Logout</button>
-        </form>
+        {% include "_menu.html" %}
       </div>
     </header>
     <main>
       {% include "panel.html" %}
+      {# Outside #panel on purpose: responses that swap the whole panel would
+         otherwise take the dialog container with them, leaving htmx nowhere to
+         render the next confirmation. #}
+      <div id="dialog"></div>
     </main>
   </body>
 </html>

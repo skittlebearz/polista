@@ -18,6 +18,7 @@ class Config:
     tofino_grpc_target: str
     tofino_device_id: str
     tofino_program_name: str
+    drift_check_interval: float
 
 
 def load_config() -> Config:
@@ -33,6 +34,11 @@ def load_config() -> Config:
     if tofino_backend not in {"fake", "p4runtime", "bfrt"}:
         raise ValueError('TOFINO_BACKEND must be "fake", "p4runtime", or "bfrt"')
 
+    try:
+        drift_check_interval = float(os.environ.get("DRIFT_CHECK_INTERVAL", "15"))
+    except ValueError as exc:
+        raise ValueError("DRIFT_CHECK_INTERVAL must be a number of seconds") from exc
+
     return Config(
         port_count=port_count,
         mappings_file=os.environ.get("MAPPINGS_FILE", "data/mappings.json"),
@@ -46,4 +52,5 @@ def load_config() -> Config:
         tofino_grpc_target=os.environ.get("TOFINO_GRPC_TARGET", "127.0.0.1:50051"),
         tofino_device_id=os.environ.get("TOFINO_DEVICE_ID", "0"),
         tofino_program_name=os.environ.get("TOFINO_PROGRAM_NAME", "polista"),
+        drift_check_interval=drift_check_interval,
     )

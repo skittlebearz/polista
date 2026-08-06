@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -9,6 +10,8 @@ from fastapi.templating import Jinja2Templates
 from app.auth import verify_credentials
 from app.controller import BackendError
 
+
+log = logging.getLogger("polista.ui")
 
 router = APIRouter()
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -56,6 +59,8 @@ def _panel_context(request: Request, *, oob: bool = False) -> dict:
         "health": controller.health,
         "health_reason": controller.health_reason,
         "sync": controller.sync,
+        "drift": controller.drift,
+        "drift_summary": controller.drift_summary(),
         "oob": oob,
     }
 
@@ -173,6 +178,7 @@ async def update_label(
 
 @router.post("/ui/refresh")
 async def refresh(request: Request):
+    """Pull from switch: the device table becomes Polista's mappings."""
     _require_session(request)
     controller = _controller(request)
     try:
@@ -182,3 +188,62 @@ async def refresh(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return templates.TemplateResponse(request, "panel.html", _panel_context(request, oob=True))
+
+
+@router.post("/ui/push")
+async def push(request: Request):
+    """Push to switch: Polista's mappings replace the device table."""
+    _require_session(request)
+    controller = _controller(request)
+    try:
+        await controller.push()
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return templates.TemplateResponse(request, "panel.html", _panel_context(request, oob=True))
+
+
+@router.post("/ui/clear/confirm")
+async def clear_confirm(request: Request):
+    _require_session(request)
+    controller = _controller(request)
+    return templates.TemplateResponse(
+        request,
+        "_clear_confirm.html",
+        {"request": request, "count": len(controller.mappings)},
+    )
+
+
+@router.post("/ui/clear")
+async def clear(request: Request):
+    _require_session(request)
+    controller = _controller(request)
+    try:
+        await controller.clear()
+    except BackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return templates.TemplateResponse(request, "panel.html", _panel_context(request, oob=True))
+
+
+@router.get("/ui/status")
+async def status(request: Request):
+    """Poll target for the menu, so out-of-band drift shows up without a reload.
+
+    Re-renders the whole menu rather than just the dot: the trigger LED and the
+    drift list both have to move when the check finds something.
+
+    Runs its own drift check rather than only reporting what the background loop
+    last saw, so an open browser is accurate even where the loop is disabled.
+    """
+    _require_session(request)
+    controller = _controller(request)
+    try:
+        await controller.check_drift()
+    except Exception:
+        # Never fail the poll: a stale menu beats a broken one, and check_drift
+        # records device failures in health where the LED will pick them up.
+        log.exception("drift check during status poll failed")
+    return templates.TemplateResponse(request, "_menu.html", _panel_context(request))

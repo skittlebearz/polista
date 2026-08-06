@@ -42,8 +42,22 @@ def main():
         BOOTSTRAP_PASSWORD=PASSWORD,
         TOFINO_BACKEND="fake",
     )
+    # Drift is only observable if something changes the table without going
+    # through Polista. The fake backend lives in-process, so the harness wraps
+    # the app with one test-only route to reach it. Written to the temp dir, not
+    # the repo: nothing ships with a "wipe the switch" endpoint.
+    env["DRIFT_CHECK_INTERVAL"] = "2"
+    env["PYTHONPATH"] = str(tmp)
+    (tmp / "uiverify_app.py").write_text(
+        "from app.main import create_app\n"
+        "app = create_app()\n"
+        "@app.post('/testonly/wipe')\n"
+        "async def wipe():\n"
+        "    app.state.controller.backend.clear_all()\n"
+        "    return {'ok': True}\n"
+    )
     server = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
+        [sys.executable, "-m", "uvicorn", "uiverify_app:app", "--host", "127.0.0.1", "--port", str(port)],
         cwd=REPO, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
     base = f"http://127.0.0.1:{port}"
@@ -124,13 +138,15 @@ def main():
             check("label persists across reload", "Camera A" in (ing(3).text_content() or ""))
             check("input hidden again after save", not ing(3).locator("input").is_visible())
 
-            # refresh button re-renders panel
+            # pull-from-switch (the old Refresh) re-renders panel, now via the menu
             ing(4).locator(".port-number").click(); egr(6).locator(".port-number").click()
             page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="4"]\').dataset.mappedEgress === "6"')
-            page.click('button:has-text("Refresh")')
+            page.click(".menu-trigger")
+            page.click('text=Pull from switch')
             page.wait_for_timeout(500)
-            check("refresh keeps mapping and line", lines() == 1
+            check("pull keeps mapping and line", lines() == 1
                   and (ing(4).get_attribute("data-mapped-egress") or "") == "6")
+            check("menu closes after an action", page.locator("#menu-panel").is_hidden())
 
             # resize redraw doesn't error, line survives
             page.set_viewport_size({"width": 700, "height": 900})
@@ -148,6 +164,38 @@ def main():
             ing(3).locator(".port-number").click()
             page.wait_for_function('document.querySelector(\'[data-side="ingress"][data-port="3"]\').dataset.mappedEgress === ""')
             check("egress-first paired click disconnects", lines() == 1)
+
+            # --- drift detection + the two recovery directions ----------------
+            # Wipe the device table behind Polista's back, the way an
+            # out-of-band bfshell edit or a bf_switchd restart would.
+            page.evaluate("fetch('/testonly/wipe', {method: 'POST'})")
+            page.wait_for_selector(".menu-led.status-degraded", timeout=20000)
+            check("LED goes amber on drift without a reload", True)
+
+            page.click(".menu-trigger")
+            page.wait_for_selector(".menu-drift")
+            check("menu names the drift", "not on the switch" in page.inner_text(".menu-drift"))
+
+            # Push repairs it: desired state goes back onto the device.
+            page.click("text=Push to switch")
+            page.wait_for_selector(".menu-led.status-ok", timeout=20000)
+            check("push clears drift", lines() == 1)
+
+            # Clear warns before destroying anything.
+            page.click(".menu-trigger")
+            page.click("text=Clear all cross-connects")
+            page.wait_for_selector(".clear-confirm")
+            check("clear asks first", "cannot be undone" in page.inner_text(".clear-confirm"))
+            page.click("text=Cancel")
+            page.wait_for_timeout(300)
+            check("cancel leaves mappings alone", lines() == 1)
+
+            page.click(".menu-trigger")
+            page.click("text=Clear all cross-connects")
+            page.wait_for_selector(".clear-confirm")
+            page.click("text=Clear everything")
+            page.wait_for_timeout(600)
+            check("clear removes every cross-connect", lines() == 0)
 
             check("no JS errors on page", not js_errors)
             if js_errors:
